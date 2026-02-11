@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --app-black: #1a1a1a;
+    --app-white: #ffffff;
+    --app-bg: #f6f6f7;
+    --app-accent: #000000;
+    --app-gray: #4a4a4a;
+    --app-light-gray: #f1f1f1;
+    --app-border: #e1e3e5;
+    --font-outfit: 'Outfit', -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+body {
+    background-color: var(--app-bg) !important;
+    font-family: var(--font-outfit) !important;
+}
+
+/* Glassmorphism for Cards */
+.Polaris-Card {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+}
+
+.Polaris-Card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06) !important;
+    background: rgba(255, 255, 255, 1) !important;
+}
+
+/* Premium Buttons */
+.Polaris-Button--variantPrimary {
+    background: linear-gradient(135deg, #1a1a1a 0%, #333333 100%) !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.2s !important;
+}
+
+.Polaris-Button--variantPrimary:hover {
+    transform: scale(1.02) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Index Table Styling */
+.unique-table-wrapper .Polaris-IndexTable__TableRow {
+    border-bottom: 8px solid var(--app-bg) !important;
+    background: #fff !important;
+    transition: transform 0.2s ease;
+}
+
+.unique-table-wrapper .Polaris-IndexTable__TableCell {
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+}
+
+/* Animations */
+@keyframes stripe-move {
+    0% {
+        background-position: 0 0;
+    }
+
+    100% {
+        background-position: 40px 0;
+    }
+}
+
+.stripe-animate {
+    animation: stripe-move 2s linear infinite;
+}
+
+/* Override Saved Templates cards */
+.template-slider-item {
+    background: #1a1a1a !important;
+    color: #fff !important;
+    border-radius: 16px;
+    padding: 4px;
+}
+
+.template-slider-item .Polaris-Card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.template-slider-item h3,
+.template-slider-item .Polaris-Text,
+.template-slider-item .Polaris-Badge {
+    color: #fff !important;
+}
+
+.template-slider-item .Polaris-Badge {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}

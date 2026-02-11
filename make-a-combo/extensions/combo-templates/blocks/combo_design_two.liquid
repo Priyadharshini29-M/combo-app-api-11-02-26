@@ -1,0 +1,562 @@
+{% comment %}
+  Combo Builder: Layout Two - Premium Modern Design with Multiple Collection Tabs
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "Combo Builder (L2)",
+  "target": "section",
+  "settings": [
+    { "type": "header", "content": "Header Settings" },
+    { "type": "text", "id": "header_title", "label": "Header Title", "default": "Stock Up & Save" },
+    { "type": "header", "content": "Banner Settings" },
+    { "type": "image_picker", "id": "banner_image", "label": "Banner Image" },
+    { "type": "text", "id": "banner_title", "label": "Banner Title", "default": "Build Your Box" },
+    { "type": "text", "id": "banner_subtitle", "label": "Banner Subtitle", "default": "Add 5+ items for 20% savings" },
+    { "type": "header", "content": "Collections (Switching Tabs)" },
+    { "type": "checkbox", "id": "show_tab_all", "label": "Show 'All/Collections' Tab", "default": false },
+    { "type": "text", "id": "tab_all_label", "label": "First Tab Label", "default": "Collections" },
+    { "type": "collection_list", "id": "collections", "label": "Collections (Tabs)", "limit": 8 },
+    { "type": "header", "content": "Product Selection & Limits" },
+    { "type": "range", "id": "max_selections", "label": "Max Selections", "min": 3, "max": 10, "step": 1, "default": 5 },
+    { "type": "text", "id": "limit_reached_message", "label": "Limit Reached Message", "default": "Limit reached!" },
+    { "type": "header", "content": "Theme Colors" },
+    { "type": "color", "id": "accent_color", "label": "Accent Color", "default": "#000000" },
+    { "type": "color", "id": "bg_color", "label": "Background Color", "default": "#ffffff" },
+    { "type": "checkbox", "id": "show_sticky_preview_bar", "label": "Show Bottom Sticky Bar", "default": false },
+    { "type": "header", "content": "Button Customization" },
+    { "type": "text", "id": "add_btn_text", "label": "Add Button Text", "default": "Add" },
+    { "type": "color", "id": "add_btn_bg", "label": "Add Button Background", "default": "#000000" },
+    { "type": "color", "id": "add_btn_text_color", "label": "Add Button Text Color", "default": "#ffffff" },
+    { "type": "text", "id": "checkout_btn_text", "label": "Checkout Button Text", "default": "Review & Checkout" },
+    { "type": "color", "id": "checkout_btn_bg", "label": "Checkout Button Background", "default": "#000000" },
+    { "type": "color", "id": "checkout_btn_text_color", "label": "Checkout Button Text Color", "default": "#ffffff" }
+  ]
+}
+{% endschema %}
+
+{% assign cfg = block.settings %}
+{%- assign accent_color = cfg.accent_color | default: "#000000" -%}
+
+{%- comment -%} Collect active collections {%- endcomment -%}
+{%- assign collections_list = cfg.collections -%}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --cdo-accent: {{ accent_color }};
+  --cdo-bg: {{ cfg.bg_color | default: "#ffffff" }};
+  --cdo-text: #1a1a1a;
+  --cdo-text-muted: #8e8e8e;
+  --cdo-font: 'Outfit', sans-serif;
+  --cdo-gray-light: #f5f5ee;
+}
+
+.cdo-l2-main {
+  font-family: var(--cdo-font);
+  background-color: var(--cdo-bg);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  color: var(--cdo-text);
+  padding-bottom: 160px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header */
+.cdo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.cdo-header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+.cdo-header-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* Hero */
+.cdo-hero { position: relative; width: 100%; height: 220px; overflow: hidden; }
+.cdo-hero img { width: 100%; height: 100%; object-fit: cover; }
+.cdo-hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.7) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24px 20px;
+  color: white;
+}
+.cdo-hero-title { font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; margin: 0 0 2px 0; }
+.cdo-hero-subtitle { font-size: 14px; opacity: 0.9; }
+
+/* Slot Preview Bar */
+.cdo-preview-bar {
+  padding: 24px 20px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cdo-slots {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 0;
+}
+.cdo-slots::-webkit-scrollbar { display: none; }
+.cdo-slot {
+  width: 56px;
+  height: 56px;
+  border: 2px dashed #ddd;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  color: #ccc;
+  overflow: hidden;
+  background: #fafafa;
+  transition: all 0.2s ease;
+}
+.cdo-slot.filled { border-style: solid; border-color: var(--cdo-accent); background: #fff; }
+.cdo-slot img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Tabs (Sliders) */
+.cdo-filters {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 24px 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cdo-filters::-webkit-scrollbar { display: none; }
+
+.cdo-filter-btn {
+  padding: 12px 28px;
+  border-radius: 30px;
+  background: var(--cdo-gray-light);
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #555;
+}
+
+.cdo-filter-btn.active {
+  background: var(--cdo-accent);
+  color: #000;
+}
+
+/* Product Grid */
+.cdo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  padding: 0 20px;
+}
+@media (min-width: 768px) { .cdo-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.cdo-card { display: flex; flex-direction: column; position: relative; background: #fff; }
+
+.cdo-card-image-wrap {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fdfdfd;
+  position: relative;
+  margin-bottom: 12px;
+  border: 1px solid #f9f9f9;
+}
+.cdo-card-image-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+
+.cdo-card-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background: var(--cdo-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 2;
+}
+.cdo-card.selected .cdo-card-check { opacity: 1; transform: scale(1); }
+
+.cdo-card-info { margin-bottom: 12px; padding: 0 2px; }
+.cdo-card-title { font-size: 14px; font-weight: 700; color: #000; margin-bottom: 2px; }
+.cdo-card-price { font-size: 13px; color: #947e4c; font-weight: 500; }
+
+.cdo-add-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: {{ cfg.add_btn_bg | default: accent_color }};
+  color: {{ cfg.add_btn_text_color | default: "#000000" }};
+  border: none;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.cdo-card.selected .cdo-add-btn { background: var(--cdo-gray-light); color: var(--cdo-text); }
+.btn-icon-minus { display: none; }
+.cdo-card.selected .btn-icon-minus { display: block; }
+.cdo-card.selected .btn-icon-plus { display: none; }
+
+/* Sticky Footer */
+.cdo-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: white;
+  box-shadow: 0 -15px 40px rgba(0,0,0,0.08);
+  padding: 20px 20px 24px 20px;
+  z-index: 200;
+  border-radius: 30px 30px 0 0;
+}
+
+.cdo-footer-top {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.cdo-selected-thumbs { display: flex; align-items: center; }
+.cdo-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid white;
+  margin-left: -18px;
+  overflow: hidden;
+  background: #f9f9f9;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+}
+.cdo-thumb:first-child { margin-left: 0; }
+.cdo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.cdo-thumb-more {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid white;
+  margin-left: -18px;
+  background: #f7f7f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cdo-text-muted);
+}
+
+.cdo-footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.cdo-total-price { font-size: 24px; font-weight: 800; color: #000; }
+
+.cdo-checkout-btn {
+  flex-grow: 1;
+  background: {{ cfg.checkout_btn_bg | default: accent_color }};
+  color: {{ cfg.checkout_btn_text_color | default: "#000000" }};
+  border: none;
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.cdo-toast {
+  position: fixed;
+  bottom: 150px;
+  left: 50%;
+  transform: translateX(-50%) translateY(30px);
+  background: #111;
+  color: white;
+  padding: 14px 28px;
+  border-radius: 40px;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cdo-toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+
+.hidden { display: none !important; }
+</style>
+
+<div class="cdo-l2-main">
+  <header class="cdo-header">
+    <div class="cdo-header-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+    </div>
+    <h2 class="cdo-header-title">{{ cfg.header_title }}</h2>
+    <div class="cdo-header-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    </div>
+  </header>
+
+  <section class="cdo-hero">
+    {% if cfg.banner_image %}
+      <img src="{{ cfg.banner_image | image_url: width: 1200 }}" alt="Banner" width="1200" height="400">
+    {% else %}
+      <img src="https://cdn.shopify.com/s/files/1/0070/7032/files/fresh-vegetables-and-fruits.jpg?v=1614349455" alt="Banner Default" width="1200" height="400">
+    {% endif %}
+    <div class="cdo-hero-overlay">
+      <h1 class="cdo-hero-title">{{ cfg.banner_title }}</h1>
+      <p class="cdo-hero-subtitle">{{ cfg.banner_subtitle }}</p>
+    </div>
+  </section>
+
+  <section class="cdo-preview-bar">
+    <div id="slotsContainer" class="cdo-slots">
+      {% for i in (1..cfg.max_selections) %}
+        <div class="cdo-slot" data-slot-id="{{ i }}">+</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="cdo-filters">
+    {% if collections_list.size > 0 %}
+      {% if cfg.show_tab_all %}
+        <button class="cdo-filter-btn active" data-tab="all">{{ cfg.tab_all_label }}</button>
+      {% endif %}
+      {% for col in collections_list %}
+        {% if col != blank %}
+          {% assign is_first = forloop.first %}
+          <button class="cdo-filter-btn {% if cfg.show_tab_all == false and is_first %}active{% endif %}" data-tab="{{ col.handle }}">{{ col.title }}</button>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </section>
+
+  <div class="cdo-grid">
+    {%- for col in collections_list -%}
+      {%- assign handle = col.handle -%}
+      {%- for product in col.products -%}
+        {%- assign variant = product.variants.first -%}
+        <div class="cdo-card" 
+             data-id="{{ variant.id }}" 
+             data-collections="{{ handle }}" 
+             data-price="{{ variant.price | money_without_currency | replace: ',', '' }}"
+             data-title="{{ product.title }}"
+             data-image="{{ variant.featured_image | default: product.featured_image | image_url: width: 400 }}">
+          
+          <div class="cdo-card-image-wrap">
+            <div class="cdo-card-check">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <img src="{{ variant.featured_image | default: product.featured_image | image_url: width: 400 }}" alt="{{ product.title }}" loading="lazy" width="400" height="400">
+          </div>
+          
+          <div class="cdo-card-info">
+            <div class="cdo-card-title">{{ product.title }}</div>
+            <div class="cdo-card-price">
+              {{ variant.price | money }}{% if product.metafields.custom.unit %}/{{ product.metafields.custom.unit }}{% endif %}
+            </div>
+          </div>
+          
+          <button class="cdo-add-btn">
+            <span class="btn-icon-plus" style="font-size: 18px; margin-top: -2px;">+</span>
+            <span class="btn-icon-minus" style="font-size: 18px; margin-top: -2px;">−</span>
+            <span class="btn-text">{{ cfg.add_btn_text | default: "Add" }}</span>
+          </button>
+        </div>
+      {%- endfor -%}
+    {%- endfor -%}
+  </div>
+
+  <footer class="cdo-footer" style="display: none;">
+    <div class="cdo-footer-top">
+      <div id="selectedThumbs" class="cdo-selected-thumbs"></div>
+    </div>
+    <div class="cdo-footer-bottom">
+      <div class="cdo-price-col">
+        <span class="cdo-price-label">Total Price</span>
+        <span id="footerTotalPrice" class="cdo-total-price">$0.00</span>
+      </div>
+      <button id="checkoutBtn" class="cdo-checkout-btn">
+        {{ cfg.checkout_btn_text | default: "Review & Checkout" }}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+  </footer>
+
+  <div id="cdoToast" class="cdo-toast">{{ cfg.limit_reached_message }}</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const maxSelections = {{ cfg.max_selections | default: 5 }};
+  const selected = {};
+  const footer = document.querySelector('.cdo-footer');
+  const thumbsContainer = document.getElementById('selectedThumbs');
+  const slotsContainer = document.getElementById('slotsContainer');
+  const footerPrice = document.getElementById('footerTotalPrice');
+  const toast = document.getElementById('cdoToast');
+  const tabBtns = document.querySelectorAll('.cdo-filter-btn');
+
+  const productCards = Array.from(document.querySelectorAll('.cdo-card'));
+  const uniqueCardsMap = new Map();
+  productCards.forEach(card => {
+    const id = card.dataset.id;
+    const col = card.dataset.collections;
+    if (uniqueCardsMap.has(id)) {
+      uniqueCardsMap.get(id).dataset.collections += ',' + col;
+      card.remove();
+    } else {
+      uniqueCardsMap.set(id, card);
+    }
+  });
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const targetTab = btn.dataset.tab;
+      uniqueCardsMap.forEach(card => {
+        const productCols = card.dataset.collections.split(',');
+        if (targetTab === 'all' || productCols.includes(targetTab)) card.classList.remove('hidden');
+        else card.classList.add('hidden');
+      });
+    });
+  });
+
+  // Initial filtering if "All" is hidden
+  const showTabAll = {{ cfg.show_tab_all | default: false }};
+  if (!showTabAll && tabBtns.length > 0) {
+    const firstBtn = tabBtns[0];
+    if (firstBtn) {
+        // Trigger initial filter logic without a real click if needed, 
+        // but here we can just manually run the filtering for the first collection.
+        const firstTab = firstBtn.dataset.tab;
+        uniqueCardsMap.forEach(card => {
+            const productCols = card.dataset.collections.split(',');
+            if (productCols.includes(firstTab)) card.classList.remove('hidden');
+            else card.classList.add('hidden');
+        });
+    }
+  }
+
+  function updateUI() {
+    let totalQty = 0;
+    let totalPrice = 0;
+    
+    uniqueCardsMap.forEach(card => {
+      const id = card.dataset.id;
+      const count = selected[id] ? selected[id].qty : 0;
+      if (count > 0) {
+        card.classList.add('selected');
+        card.querySelector('.btn-text').textContent = `${count} in Box`;
+      } else {
+        card.classList.remove('selected');
+        card.querySelector('.btn-text').textContent = '{{ cfg.add_btn_text | default: "Add" }}';
+      }
+    });
+
+    thumbsContainer.innerHTML = '';
+    const slots = Array.from(slotsContainer.children);
+    slots.forEach(slot => {
+        slot.classList.remove('filled');
+        slot.innerHTML = '+';
+    });
+
+    const items = Object.values(selected).sort((a, b) => a.timestamp - b.timestamp);
+    let currentSlotIdx = 0;
+
+    items.forEach(item => {
+      for(let i=0; i < item.qty; i++) {
+        totalQty++;
+        totalPrice += item.price;
+        
+        // Fill slots
+        if (currentSlotIdx < slots.length) {
+            const slot = slots[currentSlotIdx];
+            slot.classList.add('filled');
+            slot.innerHTML = `<img src="${item.image}">`;
+            currentSlotIdx++;
+        }
+
+        // Footer thumbs (limit 3)
+        if (totalQty <= 3) {
+          const div = document.createElement('div');
+          div.className = 'cdo-thumb';
+          div.innerHTML = `<img src="${item.image}">`;
+          thumbsContainer.appendChild(div);
+        }
+      }
+    });
+
+    if (totalQty > 3) {
+      const more = document.createElement('div');
+      more.className = 'cdo-thumb-more';
+      more.textContent = `+${totalQty - 3}`;
+      thumbsContainer.appendChild(more);
+    }
+
+    footerPrice.textContent = `$${totalPrice.toFixed(2)}`;
+    const showFooterCfg = {{ cfg.show_sticky_preview_bar | default: true }};
+    footer.style.display = (totalQty > 0 && showFooterCfg) ? 'block' : 'none';
+  }
+
+  document.addEventListener('click', (e) => {
+    const addBtn = e.target.closest('.cdo-add-btn');
+    if (addBtn) {
+      const card = addBtn.closest('.cdo-card');
+      const id = card.dataset.id;
+      const isMinus = e.target.closest('.btn-icon-minus');
+      const currentTotal = Object.values(selected).reduce((sum, i) => sum + i.qty, 0);
+      
+      if (selected[id]) {
+        if (isMinus) {
+          selected[id].qty--;
+          if (selected[id].qty === 0) delete selected[id];
+        } else {
+          if (currentTotal < maxSelections) selected[id].qty++;
+          else showToast();
+        }
+      } else {
+        if (currentTotal < maxSelections) {
+          selected[id] = { id, price: parseFloat(card.dataset.price), image: card.dataset.image, qty: 1, timestamp: Date.now() };
+        } else showToast();
+      }
+      updateUI();
+    }
+    if (e.target.id === 'checkoutBtn') window.location.href = '/checkout';
+  });
+
+  function showToast() {
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  updateUI();
+});
+</script>

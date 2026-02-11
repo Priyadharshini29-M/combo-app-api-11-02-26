@@ -1,0 +1,1054 @@
+{% comment %}
+  Combo Box Builder: Section Block
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "Combo Box Builder",
+  "target": "section",
+  "settings": [
+  { "type": "text", "id": "title", "label": "Main Title", "default": "Build Your Box" },
+  { "type": "textarea", "id": "collection_description", "label": "Description", "default": "Select items to build your perfect bundle." },
+  { "type": "range", "id": "container_width", "label": "Container Width (%)", "min": 50, "max": 100, "step": 5, "default": 100 },
+  { "type": "range", "id": "title_width", "label": "Title Width (%)", "min": 50, "max": 100, "step": 5, "default": 100 },
+  { "type": "checkbox", "id": "show_progress_bar", "label": "Show Progress Bar", "default": true },
+  { "type": "color", "id": "progress_bar_color", "label": "Progress Bar Color", "default": "#000000" },
+  { "type": "number", "id": "discount_threshold", "label": "Items for Discount", "default": 5 },
+  { "type": "text", "id": "discount_text", "label": "Discount Text", "default": "20% OFF" },
+    
+    { "type": "header", "content": "Banner" },
+    { "type": "checkbox", "id": "show_banner", "label": "Show Banner", "default": false },
+    { "type": "image_picker", "id": "banner_image", "label": "Banner Image" },
+    { "type": "range", "id": "banner_width", "label": "Banner Width (%)", "min": 50, "max": 100, "step": 5, "default": 100 },
+
+    { "type": "header", "content": "Grid Layout" },
+    { "type": "select", "id": "grid_layout_type", "label": "Layout Type", "options": [
+      { "value": "grid", "label": "Grid" },
+      { "value": "slider", "label": "Slider" }
+    ], "default": "grid" },
+    { "type": "number", "id": "desktop_columns", "label": "Desktop Columns", "default": 3 },
+    { "type": "number", "id": "mobile_columns", "label": "Mobile Columns", "default": 2 },
+
+    { "type": "header", "content": "Product Selection" },
+    { "type": "color", "id": "selection_highlight_color", "label": "Highlight Color", "default": "#000000" },
+    { "type": "checkbox", "id": "show_selection_tick", "label": "Show Selection Tick", "default": true },
+    { "type": "select", "id": "product_card_variants_display", "label": "Variant Display", "options": [
+      { "value": "hover", "label": "Hover Popup" },
+      { "value": "static", "label": "Static Inside Card" },
+      { "value": "popup", "label": "Selection Popup (Bottom)" }
+    ], "default": "hover" },
+    { "type": "checkbox", "id": "show_quantity_selector", "label": "Show Quantity Selector", "default": true },
+    { "type": "checkbox", "id": "show_sticky_preview_bar", "label": "Show Sticky Preview Bar", "default": true },
+    
+    { "type": "header", "content": "Button Styling" },
+    { "type": "text", "id": "add_btn_text", "label": "Add Button Text", "default": "Add" },
+    { "type": "color", "id": "add_btn_bg", "label": "Add Button Background", "default": "#000000" },
+    { "type": "color", "id": "add_btn_text_color", "label": "Add Button Text Color", "default": "#ffffff" },
+    { "type": "range", "id": "add_btn_width", "label": "Add Button Width (%)", "min": 20, "max": 100, "step": 5, "default": 100 },
+
+    { "type": "header", "content": "Preview Bar Styling" },
+    { "type": "color", "id": "sticky_bar_background_color", "label": "Preview Bar Background", "default": "#ffffff" },
+    { "type": "color", "id": "sticky_bar_border_color", "label": "Preview Bar Border Color", "default": "#eeeeee" },
+    { "type": "color", "id": "sticky_bar_text_color", "label": "Preview Bar Text Color", "default": "#000000" },
+    { "type": "color", "id": "sticky_bar_total_color", "label": "Total Amount Color", "default": "#000000" },
+    { "type": "range", "id": "sticky_bar_padding_vertical", "label": "Preview Bar Vertical Padding", "min": 4, "max": 40, "step": 2, "default": 12 },
+    { "type": "range", "id": "sticky_bar_padding_horizontal", "label": "Preview Bar Horizontal Padding", "min": 4, "max": 40, "step": 2, "default": 20 },
+    { "type": "text", "id": "sticky_bar_total_label", "label": "Total Label Text", "default": "Total Bundle" },
+    { "type": "color", "id": "sticky_bar_button_bg", "label": "Checkout Button Background", "default": "#000000" },
+    { "type": "color", "id": "sticky_bar_button_text", "label": "Checkout Button Text Color", "default": "#ffffff" },
+    { "type": "text", "id": "checkout_btn_text", "label": "Checkout Button Text", "default": "Checkout" },
+    { "type": "range", "id": "sticky_bar_button_radius", "label": "Checkout Button Border Radius", "min": 0, "max": 40, "step": 2, "default": 40 },
+    { "type": "range", "id": "checkout_btn_width", "label": "Checkout Button Width (px)", "min": 100, "max": 300, "step": 10, "default": 150 },
+
+    { "type": "header", "content": "Steps Configuration" },
+    { "type": "text", "id": "step_1_title", "label": "Step 1 Title", "default": "Cleanser" },
+    { "type": "text", "id": "step_1_subtitle", "label": "Step 1 Subtitle", "default": "Select one" },
+    { "type": "text", "id": "step_1_collection", "label": "Collection 1" },
+
+    { "type": "text", "id": "step_2_title", "label": "Step 2 Title", "default": "Toner" },
+    { "type": "text", "id": "step_2_subtitle", "label": "Step 2 Subtitle", "default": "Select one" },
+    { "type": "text", "id": "step_2_collection", "label": "Collection 2" },
+
+    { "type": "text", "id": "step_3_title", "label": "Step 3 Title", "default": "Serum" },
+    { "type": "text", "id": "step_3_subtitle", "label": "Step 3 Subtitle", "default": "Pick One" },
+    { "type": "text", "id": "step_3_collection", "label": "Collection 3" },
+
+    { "type": "text", "id": "step_4_title", "label": "Step 4 Title" },
+    { "type": "text", "id": "step_4_subtitle", "label": "Step 4 Subtitle" },
+    { "type": "text", "id": "step_4_collection", "label": "Collection 4" },
+
+    { "type": "text", "id": "step_5_title", "label": "Step 5 Title" },
+    { "type": "text", "id": "step_5_subtitle", "label": "Step 5 Subtitle" },
+    { "type": "text", "id": "step_5_collection", "label": "Collection 5" },
+    { "type": "range", "id": "max_selections", "label": "Max Selections", "min": 3, "max": 10, "step": 1, "default": 5 },
+    { "type": "text", "id": "limit_reached_message", "label": "Limit Reached Message", "default": "Limit reached!" }
+  ]
+}
+{% endschema %}
+
+{% assign cfg = block.settings %}
+
+<style>
+  .combo-design-one {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #333;
+    max-width: {{ cfg.container_width }}%;
+    margin: 0 auto;
+    padding: 24px;
+    background: #fff;
+  }
+
+  .cdo-header {
+    width: {{ cfg.title_width }}%;
+    margin: 0 auto;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    text-align: center;
+  }
+
+  /* Progress Bar */
+  .cdo-progress-container {
+    background: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    position: sticky;
+    top: 10px;
+    z-index: 90;
+    {% unless cfg.show_progress_bar %}display: none;{% endunless %}
+  }
+  @media (max-width: 768px) {
+    .cdo-progress-container { padding: 10px; margin-bottom: 20px; }
+  }
+  .cdo-progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 768px) {
+    .cdo-progress-info { font-size: 12px; }
+  }
+  .cdo-progress-bar-bg {
+    background: #f0f0f0;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  @media (max-width: 768px) {
+    .cdo-progress-bar-bg { height: 8px; }
+  }
+  .cdo-progress-bar-fill {
+    background: {{ cfg.progress_bar_color }};
+    height: 100%;
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  /* Banner */
+  .cdo-banner {
+    width: {{ cfg.banner_width }}%;
+    margin: 0 auto 30px;
+    border-radius: 8px;
+    overflow: hidden;
+    {% unless cfg.show_banner %}display: none;{% endunless %}
+  }
+  .cdo-banner img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Step Section */
+  .cdo-step {
+    margin-bottom: 48px;
+  }
+  .cdo-step-header {
+    margin-bottom: 20px;
+  }
+  .cdo-step-title {
+    font-size: 22px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  @media (max-width: 768px) {
+    .cdo-step-title { font-size: 18px; }
+  }
+  .cdo-step-subtitle {
+    font-size: 14px;
+    color: #666;
+  }
+  @media (max-width: 768px) {
+    .cdo-step-subtitle { font-size: 12px; }
+  }
+
+  /* Grid Layouts */
+  .cdo-layout-grid {
+    display: grid;
+    grid-template-columns: repeat({{ cfg.desktop_columns }}, 1fr);
+    gap: 20px;
+  }
+  .cdo-layout-slider {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .cdo-layout-slider::-webkit-scrollbar { display: none; }
+  .cdo-layout-slider .cdo-card {
+    min-width: 200px;
+    width: 200px;
+  }
+
+  @media (max-width: 768px) {
+    .cdo-layout-grid {
+      grid-template-columns: repeat({{ cfg.mobile_columns }}, 1fr);
+    }
+  }
+
+  /* Product Card */
+  .cdo-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: visible; /* For variant popups */
+  }
+  .cdo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.05);
+  }
+  @media (max-width: 768px) {
+    .cdo-card:hover { transform: none; }
+    .cdo-card { padding: 8px; }
+  }
+  .cdo-card.selected {
+    border: 2px solid {{ cfg.selection_highlight_color }};
+  }
+
+  .cdo-check-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: {{ cfg.selection_highlight_color }};
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: {% if cfg.show_selection_tick %}flex{% else %}none{% endif %};
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  @media (max-width: 768px) {
+    .cdo-check-badge { top: 4px; right: 4px; width: 18px; height: 18px; font-size: 10px; }
+  }
+  .cdo-card.selected .cdo-check-badge {
+    opacity: 1;
+  }
+
+  .cdo-card-img-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .cdo-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Hover Variants */
+  .cdo-variant-popup {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255,255,255,0.95);
+    padding: 8px;
+    transform: translateY(100%);
+    transition: transform 0.2s ease;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 80px;
+    overflow-y: auto;
+  }
+  .cdo-card:hover .cdo-variant-popup {
+    transform: translateY(0);
+  }
+  .cdo-variant-swatch {
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+  }
+  .cdo-variant-swatch.active {
+    background: {{ cfg.selection_highlight_color }};
+    color: #fff;
+    border-color: {{ cfg.selection_highlight_color }};
+  }
+
+  /* Selection Popup Overlay */
+  .cdo-selection-popup {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.98);
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    padding: 12px;
+    animation: cdoSlideUp 0.3s ease;
+  }
+  @media (max-width: 768px) {
+    .cdo-selection-popup { padding: 8px; }
+  }
+  .cdo-selection-popup.active {
+    display: flex;
+  }
+  @keyframes cdoSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .cdo-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666;
+  }
+  @media (max-width: 768px) {
+    .cdo-popup-header { margin-bottom: 8px; font-size: 10px; }
+  }
+  .cdo-popup-close {
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    color: #333;
+  }
+  @media (max-width: 768px) {
+    .cdo-popup-close { font-size: 18px; }
+  }
+  .cdo-popup-variants {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  @media (max-width: 768px) {
+    .cdo-popup-variants { gap: 6px; }
+  }
+  .cdo-popup-variant-btn {
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    background: #f9f9f9;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  @media (max-width: 768px) {
+    .cdo-popup-variant-btn { padding: 8px; font-size: 11px; }
+  }
+  .cdo-popup-variant-btn:hover {
+    border-color: {{ cfg.selection_highlight_color }};
+  }
+  .cdo-popup-variant-btn.active {
+    background: {{ cfg.selection_highlight_color }};
+    color: white;
+    border-color: {{ cfg.selection_highlight_color }};
+  }
+
+  /* Sticky Bar */
+  .cdo-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: {{ cfg.sticky_bar_background_color | default: "#ffffff" }};
+    padding: {{ cfg.sticky_bar_padding_vertical | default: 12 }}px {{ cfg.sticky_bar_padding_horizontal | default: 20 }}px;
+    border-top: 1px solid {{ cfg.sticky_bar_border_color | default: "#eeeeee" }};
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+    z-index: 1000;
+    {% unless cfg.show_sticky_preview_bar %}display: none;{% endunless %}
+  }
+
+  @media (max-width: 768px) {
+    .cdo-sticky-bar {
+      padding: {{ cfg.sticky_bar_padding_vertical | default: 10 }}px {{ cfg.sticky_bar_padding_horizontal | default: 12 }}px;
+    }
+  }
+
+  .cdo-tray {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin-right: 16px;
+    scrollbar-width: none;
+    flex-grow: 1;
+  }
+  .cdo-tray::-webkit-scrollbar { display: none; }
+
+  @media (max-width: 768px) {
+    .cdo-tray { gap: 4px; margin-right: 8px; }
+  }
+
+  .cdo-tray-item {
+    width: 44px;
+    height: 44px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  @media (max-width: 768px) {
+    .cdo-tray-item { width: 32px; }
+  }
+
+  .cdo-sticky-price-info {
+    flex-shrink: 0;
+    text-align: right;
+    display: flex;
+    align-items: center;
+    color: {{ cfg.sticky_bar_text_color | default: "#000000" }};
+  }
+
+  .cdo-sticky-total {
+    font-size: 18px;
+    font-weight: 800;
+    color: {{ cfg.sticky_bar_total_color | default: cfg.selection_highlight_color }};
+  }
+
+  @media (max-width: 768px) {
+    .cdo-sticky-total { font-size: 15px; }
+  }
+
+  .cdo-checkout-btn {
+    background: {{ cfg.sticky_bar_button_bg | default: cfg.selection_highlight_color }};
+    color: {{ cfg.sticky_bar_button_text | default: "#ffffff" }};
+    border: none;
+    padding: 10px 0;
+    width: {{ cfg.checkout_btn_width }}px;
+    border-radius: {{ cfg.sticky_bar_button_radius | default: 50 }}px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  @media (max-width: 768px) {
+    .cdo-checkout-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      width: auto;
+    }
+  }
+
+  .cdo-qty-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cdo-qty-value {
+    width: 40px;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-left: none;
+    border-right: none;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .cdo-add-btn {
+    background: {{ cfg.add_btn_bg | default: cfg.selection_highlight_color }};
+    color: {{ cfg.add_btn_text_color | default: '#fff' }};
+    border: none;
+    padding: 4px 12px;
+    width: {{ cfg.add_btn_width | default: 100 }}%;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: background 0.2s;
+  }
+  .cdo-card.selected .cdo-add-btn {
+    background: #ff4d4d;
+    color: white;
+  }
+</style>
+
+<div class="combo-design-one">
+  {% if cfg.show_banner and cfg.banner_image != blank %}
+    <div class="cdo-banner">
+      <img src="{{ cfg.banner_image | image_url: width: 1200 }}" alt="Banner" width="1200" height="400" loading="eager">
+    </div>
+  {% endif %}
+
+  <div class="cdo-header">
+    <h1 style="font-size: 28px; font-weight: 800; margin-bottom: 8px;">{{ cfg.title }}</h1>
+    {% if cfg.collection_description != blank %}
+      <p style="color: #666; font-size: 15px; margin-bottom: 24px;">{{ cfg.collection_description }}</p>
+    {% endif %}
+  </div>
+
+  <div class="cdo-progress-container">
+    <div class="cdo-progress-info">
+      <div>Bundle Progress</div>
+      <div id="cdo-progress-text">0% Complete</div>
+    </div>
+    <div class="cdo-progress-bar-bg">
+      <div class="cdo-progress-bar-fill" id="cdo-progress-bar"></div>
+    </div>
+    <div class="cdo-unlock-msg" id="cdo-unlock-msg">
+      Add <strong id="cdo-remaining-count">0</strong> more to unlock <strong>{{ cfg.discount_text }}</strong>
+    </div>
+  </div>
+
+  <div id="cdo-form">
+    <div id="cdo-steps-container">
+      {% for i in (1..5) %}
+        {% capture step_title_key %}step_{{ i }}_title{% endcapture %}
+        {% capture step_coll_key %}step_{{ i }}_collection{% endcapture %}
+        {% capture step_sub_key %}step_{{ i }}_subtitle{% endcapture %}
+        
+        {% assign step_title = cfg[step_title_key] %}
+        {% assign step_coll = cfg[step_coll_key] %}
+        {% assign step_sub = cfg[step_sub_key] %}
+
+        {% if step_coll != blank %}
+          <div class="cdo-step" id="step-{{ i }}" data-step-index="{{ i }}">
+            <div class="cdo-step-header">
+              <div class="cdo-step-title">{{ step_title }} <span class="cdo-step-check">✓</span></div>
+              <div class="cdo-step-subtitle">{{ step_sub }}</div>
+            </div>
+            
+            <div class="{% if cfg.grid_layout_type == 'slider' %}cdo-layout-slider{% else %}cdo-layout-grid{% endif %}">
+              {% for product in collections[step_coll].products %}
+                 {% assign variant = product.selected_or_first_available_variant %}
+                 <div class="cdo-card" 
+                      data-product-id="{{ product.id }}" 
+                      data-variant-id="{{ variant.id }}"
+                      data-price="{{ variant.price }}"
+                      data-image="{{ product.featured_image | default: product.images[0] | image_url: width: 200 }}"
+                      onclick="selectProduct(this, {{ i }})">
+                    
+                    <div class="cdo-check-badge">✓</div>
+                    
+                    <div class="cdo-card-img-wrapper">
+                      <img src="{{ product.featured_image | image_url: width: 400 }}" class="cdo-card-img" alt="{{ product.title }}" width="400" height="400" loading="lazy">
+                      
+                      {% if cfg.product_card_variants_display == 'hover' and product.variants.size > 1 %}
+                        <div class="cdo-variant-popup">
+                          {% for v in product.variants %}
+                            <div class="cdo-variant-swatch {% if v.id == variant.id %}active{% endif %}" 
+                                 data-variant-id="{{ v.id }}"
+                                 data-price="{{ v.price }}"
+                                 onclick="event.stopPropagation(); changeVariant(this, '{{ product.id }}')">
+                              {{ v.title }}
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    {% if cfg.product_card_variants_display == 'popup' and product.variants.size > 1 %}
+                      <div class="cdo-selection-popup" id="popup-{{ product.id }}-{{ i }}">
+                        <div class="cdo-popup-header">
+                          <span>Pick Options</span>
+                          <span class="cdo-popup-close" onclick="event.stopPropagation(); togglePopup('{{ product.id }}', '{{ i }}', false)">&times;</span>
+                        </div>
+                        <div class="cdo-popup-variants">
+                          {% for v in product.variants %}
+                            <div class="cdo-popup-variant-btn {% if v.id == variant.id %}active{% endif %}"
+                                 data-variant-id="{{ v.id }}"
+                                 data-price="{{ v.price }}"
+                                 onclick="event.stopPropagation(); changeVariantAndSelect(this, '{{ product.id }}', '{{ i }}')">
+                              {{ v.title }} - {{ v.price | money }}
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% endif %}
+
+                    <div style="padding: 4px;">
+                      {% if cfg.product_card_variants_display == 'static' and product.variants.size > 1 %}
+                        <select onchange="changeVariantSelect(this, '{{ product.id }}')" style="width: 100%; font-size: 11px; margin-bottom: 6px; padding: 4px; border-radius: 4px; border: 1px solid #ddd; background: #fff;">
+                          {% for v in product.variants %}
+                            <option value="{{ v.id }}" data-price="{{ v.price }}" {% if v.id == variant.id %}selected{% endif %}>{{ v.title }}</option>
+                          {% endfor %}
+                        </select>
+                      {% endif %}
+
+                      <div style="font-size: 14px; font-weight: 700; margin-bottom: 2px;">{{ product.title }}</div>
+
+                      <div class="cdo-price-value" style="font-weight: 800; font-size: 15px; color: {{ cfg.selection_highlight_color }}">
+                         {{ variant.price | money }}
+                      </div>
+
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+                          {% if cfg.show_quantity_selector %}
+                            <div style="display: flex; align-items: center;">
+                              <button type="button" class="cdo-qty-btn" onclick="event.stopPropagation(); updateQty(this, -1)">−</button>
+                              <input type="number" class="cdo-qty-value" value="0" min="0" onchange="updateQty(this, 0)" onclick="event.stopPropagation()">
+                              <button type="button" class="cdo-qty-btn" onclick="event.stopPropagation(); updateQty(this, 1)">+</button>
+                            </div>
+                          {% endif %}
+
+                          {% if cfg.show_add_to_cart_btn %}
+                            <button type="button" class="cdo-add-btn" onclick="event.stopPropagation(); selectProduct(this.closest('.cdo-card'), {{ i }})">
+                              {{ cfg.add_btn_text | default: 'Add' }}
+                            </button>
+                          {% endif %}
+                        </div>
+
+
+                    </div>
+                 </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    </div>
+
+  <div style="height: 120px;"></div>
+
+  <div class="cdo-sticky-bar">
+    <div class="cdo-tray" id="cdo-tray">
+      <!-- Thumbnails added here -->
+    </div>
+    <div class="cdo-sticky-price-info">
+      <div id="cdo-sticky-total-label" style="font-size: 11px;">
+        {{ cfg.sticky_bar_total_label | default: 'Total Bundle' }}
+      </div>
+      <div class="cdo-sticky-total" id="cdo-total-price">{{ 0 | money }}</div>
+      <button type="button" class="cdo-checkout-btn" id="cdo-checkout-btn" onclick="handleCheckout()">
+        {{ cfg.checkout_btn_text | default: "Checkout" }}
+      </button>
+  </div>
+</div>
+</div>
+
+<div id="combo-toast" class="combo-toast"></div>
+
+<style>
+/* Toast Notification */
+.combo-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #323232;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  opacity: 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  max-width: 90%;
+  text-align: center;
+}
+
+.combo-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+</style>
+
+<script>
+  const state = {
+    totalSteps: 0,
+    selections: {}, // { stepIndex: { variantId, price, image, qty } }
+  };
+
+  const maxSelections = {{ cfg.max_selections | default: 5 }};
+  const limitMsgPattern = `{{ cfg.limit_reached_message | default: 'Limit reached! You can only select [limit] items.' }}`;
+
+  function getLimitMsg(val) {
+    const limit = val !== undefined ? val : maxSelections;
+    return limitMsgPattern.replace('{% raw %}{{limit}}{% endraw %}', limit).replace('[limit]', limit);
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('combo-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
+  }
+
+  function init() {
+    state.totalSteps = document.querySelectorAll('.cdo-step').length;
+    updateProgress();
+  }
+
+  function togglePopup(pid, index, show) {
+    const popup = document.getElementById(`popup-${pid}-${index}`);
+    if (popup) {
+      if (show) popup.classList.add('active');
+      else popup.classList.remove('active');
+    }
+  }
+
+  function changeVariantAndSelect(el, pid, index) {
+    const vid = el.dataset.variantId;
+    const price = el.dataset.price;
+    const card = el.closest('.cdo-card');
+    
+    // Update active state in popup
+    el.parentElement.querySelectorAll('.cdo-popup-variant-btn').forEach(btn => btn.classList.remove('active'));
+    el.classList.add('active');
+    
+    // Update card data
+    card.dataset.variantId = vid;
+    card.dataset.price = price;
+    
+    // Update price display
+    const priceDisplay = card.querySelector('.cdo-price-value');
+    if (priceDisplay) priceDisplay.innerHTML = formatMoney(price);
+    
+    // Close popup and select product
+    togglePopup(pid, index, false);
+    selectProduct(card, index);
+    updateButtonState(card);
+  }
+
+  function selectProduct(card, stepIndex) {
+    const qtyInput = card.querySelector('.cdo-qty-value');
+
+    if (card.classList.contains('selected')) {
+      const showQty = {{ cfg.show_quantity_selector | default: false }};
+      if (!showQty) {
+        // Toggle off if quantity selector is hidden
+        card.classList.remove('selected');
+        if (qtyInput) qtyInput.value = 0;
+        delete state.selections[stepIndex];
+        
+        const stepEl = document.getElementById(`step-${stepIndex}`);
+        if (stepEl) stepEl.classList.remove('completed');
+        
+        updateTotal();
+        updateProgress();
+        updateTray();
+        updateButtonState(card);
+      } else {
+        const incBtn = card.querySelector('.cdo-qty-btn:last-child');
+        if (incBtn) updateQty(incBtn, 1);
+      }
+      return;
+    }
+
+    if ("{{ cfg.product_card_variants_display }}" === "popup") {
+      const hasVariants = card.querySelector('.cdo-selection-popup') !== null;
+      if (hasVariants && !card.classList.contains('selected')) {
+        const pid = card.dataset.productId;
+        togglePopup(pid, stepIndex, true);
+        return;
+      }
+    }
+
+    const productId = card.dataset.productId;
+    const variantId = card.dataset.variantId;
+    const price = parseFloat(card.dataset.price);
+    const image = card.dataset.image;
+    
+    let qty = qtyInput ? parseInt(qtyInput.value) || 0 : 1;
+    if (qty === 0) {
+      qty = 1;
+      if (qtyInput) qtyInput.value = 1;
+    }
+
+        // Step Logic: Deselect others in the same step
+    const stepEl = document.getElementById(`step-${stepIndex}`);
+    stepEl.querySelectorAll('.cdo-card.selected').forEach(c => {
+      if (c !== card) {
+        c.classList.remove('selected');
+        const otherQty = c.querySelector('.cdo-qty-value');
+        if (otherQty) otherQty.value = 0;
+        updateButtonState(c);
+      }
+    });
+    
+    const totalItems = Object.values(state.selections).reduce((sum, s) => sum + (parseInt(s.qty) || 0), 0);
+    if (totalItems >= maxSelections) {
+      showToast(getLimitMsg());
+      return;
+    }
+
+    card.classList.add('selected');
+    stepEl.classList.add('completed');
+
+    state.selections[stepIndex] = { variantId, price, image, qty };
+    updateTotal();
+    updateProgress();
+    updateTray();
+    updateButtonState(card);
+    
+    // FOMO Toast
+    showToast('Added to bundle!');
+  }
+
+  function updateButtonState(card) {
+      if (!card) return;
+      const btn = card.querySelector('.cdo-add-btn');
+      if (btn) {
+          if (card.classList.contains('selected')) {
+            // Optional: change text if needed
+            btn.innerText = "{{ cfg.add_btn_text | default: 'Add' }}"; 
+          } else {
+            btn.innerText = "{{ cfg.add_btn_text | default: 'Add' }}";
+          }
+      }
+  }
+
+  function changeVariant(swatch, productId) {
+    const variantId = swatch.dataset.variantId;
+    const price = swatch.dataset.price;
+    const card = swatch.closest('.cdo-card');
+    
+    card.dataset.variantId = variantId;
+    card.dataset.price = price;
+    
+    // Update active swatch
+    card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active'));
+    swatch.classList.add('active');
+
+    // If already selected, update state
+    const stepIndex = card.closest('.cdo-step').dataset.stepIndex;
+    if (card.classList.contains('selected')) {
+      state.selections[stepIndex].variantId = variantId;
+      state.selections[stepIndex].price = parseFloat(price);
+      if (swatch.dataset.image) {
+        state.selections[stepIndex].image = swatch.dataset.image;
+      }
+      updateProgress();
+      updateTray();
+    }
+    
+    // Update price display
+    const priceDisplay = card.querySelector('.cdo-price-value');
+    if (priceDisplay) priceDisplay.innerHTML = formatMoney(price);
+  }
+
+  function changeVariantSelect(select, productId) {
+    const selectedOption = select.options[select.selectedIndex];
+    const variantId = selectedOption.value;
+    const price = selectedOption.dataset.price;
+    const card = select.closest('.cdo-card');
+    
+    card.dataset.variantId = variantId;
+    card.dataset.price = price;
+
+    const stepIndex = card.closest('.cdo-step').dataset.stepIndex;
+    if (card.classList.contains('selected')) {
+      state.selections[stepIndex].variantId = variantId;
+      state.selections[stepIndex].price = parseFloat(price);
+      if (selectedOption.dataset.image) {
+        state.selections[stepIndex].image = selectedOption.dataset.image;
+      }
+      updateProgress();
+      updateTray();
+    }
+
+    // Update price display
+    const priceDisplay = card.querySelector('.cdo-price-value');
+    if (priceDisplay) priceDisplay.innerHTML = formatMoney(price);
+  }
+
+
+
+  function updateQty(el, delta) {
+    const qtyWrapper = el.closest('div');
+    const qtyInput = qtyWrapper.querySelector('.cdo-qty-value');
+    if (!qtyInput) return;
+    
+    let qty = parseInt(qtyInput.value) || 0;
+    if (delta !== 0) {
+      const totalItems = Object.values(state.selections).reduce((sum, s) => sum + (parseInt(s.qty) || 0), 0);
+      const currentItemQty = state.selections[stepIndex] ? state.selections[stepIndex].qty : 0;
+      
+      if (delta > 0 && totalItems >= maxSelections) {
+          showToast(getLimitMsg());
+          return;
+      }
+      qty = Math.max(0, qty + delta);
+    } 
+    qtyInput.value = qty;
+
+    const card = el.closest('.cdo-card');
+    if (!card) return;
+    
+    const stepEl = card.closest('.cdo-step');
+    const stepIndex = stepEl ? stepEl.dataset.stepIndex : null;
+    
+    if (qty > 0 && !card.classList.contains('selected')) {
+      selectProduct(card, stepIndex);
+    } else if (qty === 0 && card.classList.contains('selected')) {
+      selectProduct(card, stepIndex);
+    } else if (card.classList.contains('selected') && stepIndex) {
+      if (!state.selections[stepIndex]) state.selections[stepIndex] = {};
+      state.selections[stepIndex].qty = qty;
+      updateTotal();
+      updateProgress();
+      updateTray();
+    }
+  }
+
+  function updateTotal() {
+    let total = 0;
+    Object.values(state.selections).forEach(s => {
+      total += (parseFloat(s.price || 0) * (parseInt(s.qty) || 0));
+    });
+    
+    const totalEl = document.getElementById('cdo-total-price');
+    if (totalEl) totalEl.innerText = formatMoney(total);
+  }
+
+  function updateProgress() {
+    // Total items in the bundle (counting quantities)
+    const totalItems = Object.values(state.selections).reduce((sum, s) => sum + (parseInt(s.qty) || 0), 0);
+    // Goal is either the number of steps or the discount threshold, whichever represents the "bundle" better.
+    // We'll use totalSteps (number of categories) as the primarily visual goal for the top bar.
+    const threshold = {{ cfg.discount_threshold | default: 5 }};
+    const percent = threshold > 0 ? Math.min(100, Math.round((totalItems / threshold) * 100)) : 0;
+    
+    const bar = document.getElementById('cdo-progress-bar');
+    if (bar) bar.style.width = `${percent}%`;
+    
+    const text = document.getElementById('cdo-progress-text');
+    if (text) text.innerText = `${percent}% Complete`;
+    
+    const remaining = Math.max(0, threshold - totalItems);
+    const msg = document.getElementById('cdo-unlock-msg');
+    
+    // Attempt to get discount text from settings, default to generic if empty
+    const rawDiscountText = `{{ cfg.discount_text | escape }}`;
+    const discountText = rawDiscountText.trim() !== '' ? rawDiscountText : 'Discount';
+    
+    if (msg) {
+      if (remaining > 0) {
+        msg.innerHTML = `Add <strong id="cdo-remaining-count">${remaining}</strong> more to unlock <strong>${discountText}</strong>`;
+      } else {
+        // Only show "Discount X Unlocked" if we have a specific text, otherwise simple "Discount Unlocked"
+        const unlockedText = rawDiscountText.trim() !== '' ? `Discount ${discountText} Unlocked! 🎉` : 'Discount Unlocked! 🎉';
+        msg.innerHTML = `<strong style="color: #28a745;">${unlockedText}</strong>`;
+      }
+    }
+
+    updateTotal();
+  }
+
+  function updateTray() {
+    const tray = document.getElementById('cdo-tray');
+    if (!tray) return;
+    tray.innerHTML = '';
+    
+    Object.values(state.selections).forEach(s => {
+      for (let i = 0; i < (parseInt(s.qty) || 0); i++) {
+        const img = document.createElement('img');
+        img.src = s.image;
+        img.className = 'cdo-tray-item';
+        tray.appendChild(img);
+      }
+    });
+  }
+
+  function formatMoney(cents) {
+    // Basic formatting - in production use Shopify.formatMoney
+    return 'Rs.' + (cents / 100).toFixed(2);
+  }
+
+  async function handleCheckout() {
+    const items = Object.values(state.selections).map(s => ({
+      id: s.variantId,
+      quantity: s.qty
+    }));
+
+    if (items.length < state.totalSteps) {
+      const firstIncomplete = Array.from(document.querySelectorAll('.cdo-step')).find(s => !state.selections[s.dataset.stepIndex]);
+      if (firstIncomplete) firstIncomplete.scrollIntoView({ behavior: 'smooth' });
+      showToast('Please select items for all steps!');
+      return;
+    }
+
+    const btn = document.getElementById('cdo-checkout-btn');
+    btn.disabled = true;
+    btn.innerText = 'Adding...';
+
+    try {
+      // Use window.Shopify.routes.root + 'cart/add.js' which is safer
+      const cartAddUrl = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root + 'cart/add.js' : '/cart/add.js';
+      
+      const response = await fetch(cartAddUrl.replace('//', '/'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      if (response.ok) {
+        window.location.href = '/cart';
+      } else {
+        showToast('Failed to add to cart.');
+        btn.disabled = false;
+        btn.innerText = 'Checkout';
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Error occurred.');
+      btn.disabled = false;
+      btn.innerText = "{{ cfg.checkout_btn_text | default: 'Checkout' }}";
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('shopify:section:load', init);
+</script>

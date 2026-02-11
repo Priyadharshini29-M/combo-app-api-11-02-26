@@ -1,0 +1,741 @@
+{% comment %}
+  Combo Builder Layout 4: Banner > Title > Product Cards Grid > Preview Bar
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "Combo Builder Layout 4",
+  "target": "section",
+  "settings": [
+  { "type": "image_picker", "id": "banner_image", "label": "Banner Image (Desktop)" },
+  { "type": "image_picker", "id": "banner_image_mobile", "label": "Banner Image (Mobile)" },
+  { "type": "text", "id": "collection_title", "label": "Collection Title", "default": "Build Your Combo" },
+  { "type": "textarea", "id": "collection_description", "label": "Collection Description", "default": "Select your favorite products and enjoy exclusive discounts" },
+  { "type": "range", "id": "title_block_padding_top", "label": "Title & Description Padding Top", "min": 0, "max": 80, "step": 4, "default": 24 },
+  { "type": "range", "id": "title_block_padding_bottom", "label": "Title & Description Padding Bottom", "min": 0, "max": 80, "step": 4, "default": 24 },
+  { "type": "collection", "id": "collection", "label": "Select Collection" },
+  { "type": "range", "id": "max_selections", "label": "Max Selections", "min": 3, "max": 10, "step": 1, "default": 5 },
+  { "type": "text", "id": "limit_reached_message", "label": "Limit Reached Message", "default": "Limit reached! You can only select [limit] items." },
+  { "type": "checkbox", "id": "show_quantity_selector", "label": "Show Quantity Selector", "default": true },
+  { "type": "checkbox", "id": "show_progress_bar", "label": "Show Progress Bar", "default": true },
+  { "type": "color", "id": "progress_bar_color", "label": "Progress Bar Color", "default": "#000000" },
+  { "type": "color", "id": "bg_color", "label": "Background Color", "default": "#ffffff" },
+  { "type": "color", "id": "text_color", "label": "Text Color", "default": "#1a1a1a" },
+  { "type": "range", "id": "discount_percentage", "label": "Discount Percentage (%)", "min": 0, "max": 100, "step": 5, "default": 20 },
+  { "type": "header", "content": "Preview Bar Styling" },
+  { "type": "color", "id": "preview_bar_background", "label": "Preview Bar Background", "default": "#000000" },
+  { "type": "color", "id": "preview_bar_text_color", "label": "Preview Bar Text Color", "default": "#ffffff" },
+  { "type": "color", "id": "preview_bar_slot_border_color", "label": "Preview Slot Border Color", "default": "#ffffff" },
+  { "type": "color", "id": "preview_bar_slot_icon_color", "label": "Preview Slot Icon Color", "default": "#ffffff" },
+  { "type": "color", "id": "preview_bar_original_color", "label": "Original Price Color", "default": "rgba(255,255,255,0.6)" },
+  { "type": "color", "id": "preview_bar_discounted_color", "label": "Discounted Price Color", "default": "#ffffff" },
+  { "type": "text", "id": "preview_bar_total_label", "label": "Total Label Text", "default": "Total price =" },
+  { "type": "color", "id": "preview_bar_button_bg", "label": "Preview Button Background", "default": "#ffffff" },
+  { "type": "color", "id": "preview_bar_button_text", "label": "Preview Button Text Color", "default": "#000000" },
+  { "type": "range", "id": "preview_bar_padding_vertical", "label": "Preview Bar Vertical Padding", "min": 4, "max": 40, "step": 2, "default": 20 },
+  { "type": "range", "id": "preview_bar_padding_horizontal", "label": "Preview Bar Horizontal Padding", "min": 4, "max": 40, "step": 2, "default": 20 },
+  { "type": "range", "id": "preview_bar_border_radius", "label": "Preview Bar Border Radius", "min": 0, "max": 40, "step": 2, "default": 8 },
+  { "type": "header", "content": "Inline Preview Bar Options" },
+  { "type": "checkbox", "id": "show_inline_preview_bar", "label": "Show Inline Preview Bar", "default": false },
+  { "type": "range", "id": "original_price_size", "label": "Original Price Font Size", "min": 10, "max": 24, "step": 1, "default": 14 },
+  { "type": "range", "id": "discounted_price_size", "label": "Discounted Price Font Size", "min": 14, "max": 36, "step": 1, "default": 18 },
+  { "type": "header", "content": "Button Customization" },
+  { "type": "text", "id": "add_btn_text", "label": "Add Button Text", "default": "Add" },
+  { "type": "color", "id": "add_btn_bg", "label": "Add Button Background", "default": "#000000" },
+  { "type": "color", "id": "add_btn_text_color", "label": "Add Button Text Color", "default": "#ffffff" },
+  { "type": "text", "id": "checkout_btn_text", "label": "Checkout Button Text", "default": "Proceed to checkout" }
+  ]
+}
+{% endschema %}
+
+{% assign cfg = block.settings %}
+
+{% assign max_sel_num = cfg.max_selections | plus: 0 %}
+{% if max_sel_num > 3 %}
+  {% assign diff = max_sel_num | minus: 3 %}
+  {% assign reduction = diff | times: 8 %}
+  {% assign dynamic_preview_size = 56 | minus: reduction %}
+  {% if dynamic_preview_size < 30 %}{% assign dynamic_preview_size = 30 %}{% endif %}
+{% else %}
+  {% assign dynamic_preview_size = 56 %}
+{% endif %}
+
+
+
+
+
+<style>
+:root {
+  --preview-shape-size: {{ dynamic_preview_size | default: 56 }}px;
+}
+@media (max-width: 768px) {
+  :root {
+    {% assign mobile_reduction = diff | default: 0 | times: 6 %}
+    {% assign dynamic_preview_size_mobile = 44 | minus: mobile_reduction %}
+    {% if dynamic_preview_size_mobile < 24 %}{% assign dynamic_preview_size_mobile = 24 %}{% endif %}
+    --preview-shape-size: {{ dynamic_preview_size_mobile }}px;
+  }
+}
+
+.combo-header {
+  padding-top: {{ cfg.title_block_padding_top | default: 24 }}px;
+  padding-bottom: {{ cfg.title_block_padding_bottom | default: 24 }}px;
+}
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --preview-shape-size: {{ dynamic_preview_size | default: 56 }}px;
+  --combo-primary: {{ cfg.add_btn_bg | default: '#000000' }};
+  --combo-accent: {{ cfg.preview_bar_background | default: '#000000' }};
+  --combo-font: 'Outfit', sans-serif;
+}
+@media (max-width: 768px) {
+  :root {
+    {% assign mobile_reduction = diff | default: 0 | times: 6 %}
+    {% assign dynamic_preview_size_mobile = 44 | minus: mobile_reduction %}
+    {% if dynamic_preview_size_mobile < 24 %}{% assign dynamic_preview_size_mobile = 24 %}{% endif %}
+    --preview-shape-size: {{ dynamic_preview_size_mobile }}px;
+  }
+}
+
+.combo-builder-container {
+  font-family: var(--combo-font);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  color: #1a1a1a;
+}
+
+.combo-header {
+  text-align: center;
+  margin-bottom: 40px;
+  padding-top: {{ cfg.title_block_padding_top | default: 24 }}px;
+  padding-bottom: {{ cfg.title_block_padding_bottom | default: 24 }}px;
+}
+
+.combo-header h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -1px;
+}
+
+.combo-header p {
+  font-size: 1.1rem;
+  color: #666;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Progress Bar */
+.combo-progress-wrapper {
+  max-width: 600px;
+  margin: 0 auto 50px;
+  text-align: center;
+}
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.progress-bar-container {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--combo-primary);
+  width: 0%;
+  border-radius: 10px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.qty-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.qty-btn:hover:not(:disabled) {
+  background: var(--combo-primary);
+  color: #ffffff;
+  border-color: var(--combo-primary);
+}
+
+.cdo-qty-value {
+  width: 40px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  border-left: none;
+  border-right: none;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  outline: none;
+  background: #ffffff;
+  -webkit-appearance: none;
+}
+
+/* Toast Notification */
+.combo-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #000000;
+  color: #ffffff;
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 10000;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  max-width: 90%;
+  text-align: center;
+}
+
+.combo-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.combo-banner {
+  margin-bottom: 40px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.combo-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.combo-banner-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .combo-banner-desktop {
+    display: none;
+  }
+  .combo-banner-mobile {
+    display: block;
+  }
+  .combo-header h1 {
+    font-size: 2.2rem;
+  }
+}
+
+.combo-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+  margin-bottom: 60px;
+}
+
+.product-card {
+  border: 1px solid #f0f0f0;
+  border-radius: 20px;
+  padding: 20px;
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.product-card:hover {
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  transform: translateY(-8px);
+  border-color: #eee;
+}
+
+.product-card.selected {
+  border-color: var(--combo-primary);
+  background: #fafafa;
+}
+
+.product-image {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 1;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s ease;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.1);
+}
+
+.product-info {
+  margin-top: 20px;
+  flex-grow: 1;
+}
+
+.product-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.add-to-cart-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: var(--combo-font);
+}
+
+.add-to-cart-btn:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+#preview-bar {
+  position: sticky;
+  bottom: 30px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(var(--combo-accent-rgb, 0, 0, 0), 0.9) !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+</style>
+
+<!-- === Combo Builder Layout 4 === -->
+<div class="combo-builder-container">
+  {% comment %} 1. Banner Section {% endcomment %}
+  {% if cfg.banner_image %}
+    <div class="combo-banner combo-banner-desktop">
+      <img src="{{ cfg.banner_image | image_url: width: 1200 }}" alt="Combo Banner Desktop" width="1200" height="400">
+    </div>
+  {% endif %}
+  {% if cfg.banner_image_mobile %}
+    <div class="combo-banner combo-banner-mobile">
+      <img src="{{ cfg.banner_image_mobile | image_url: width: 800 }}" alt="Combo Banner Mobile" width="800" height="400">
+    </div>
+  {% elsif cfg.banner_image %}
+    <div class="combo-banner combo-banner-mobile">
+      <img src="{{ cfg.banner_image | image_url: width: 800 }}" alt="Combo Banner" width="800" height="400">
+    </div>
+  {% endif %}
+
+  {% comment %} 2. Title & Description Section {% endcomment %}
+  <div class="combo-header">
+    <h1>{{ cfg.collection_title }}</h1>
+    <p>{{ cfg.collection_description }}</p>
+  </div>
+
+  {% comment %} Progress Section {% endcomment %}
+  {% if cfg.show_progress_bar %}
+  <div class="combo-progress-wrapper">
+    <div class="progress-labels">
+      <span>Your Progress</span>
+      <span id="progress-percentage">0%</span>
+    </div>
+    <div class="progress-bar-container">
+      <div id="progress-bar-fill" class="progress-bar-fill"></div>
+    </div>
+    <p id="progress-status" style="margin-top: 10px; font-size: 0.85rem; color: #888;">Add <span id="items-remaining">{{ cfg.max_selections }}</span> more items to complete your bundle</p>
+  </div>
+  {% endif %}
+
+  {% comment %} 3. Product Cards Grid Section {% endcomment %}
+  <div class="combo-wrapper">
+    {% for product in collections[cfg.collection].products %}
+      {% assign first_variant = product.variants.first %}
+      {% assign first_variant_image = first_variant.featured_image | default: product.featured_image | default: product.images[0] %}
+      <div class="product-card combo-card" 
+        data-id="{{ first_variant.id }}" 
+        data-price="{{ first_variant.price }}" 
+        data-image="{{ first_variant_image | image_url: width: 300 }}" 
+        data-title="{{ product.title | escape }}">
+        <div class="product-image">
+          <img src="{{ first_variant_image | image_url: width: 300 }}" alt="{{ product.title }}" width="300" height="300">
+        </div>
+        <div class="product-info">
+          <div class="product-title">{{ product.title }}</div>
+          {% if product.variants.size > 1 %}
+            <select class="variant-select" style="width: 100%; margin-top: 8px; padding: 10px; border-radius: 8px; border: 1px solid #f0f0f0; background: #fff; font-family: var(--combo-font); font-weight: 500;">
+              {% for v in product.variants %}
+                <option value="{{ v.id }}" data-price="{{ v.price }}" data-image="{{ v.featured_image | default: product.featured_image | image_url: width: 300 }}">{{ v.title }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+          <div class="product-price" style="margin-top: 8px; font-weight: 700; font-size: 1.1rem; color: var(--combo-primary);">{{ first_variant.price | money }}</div>
+        </div>
+        <div class="qty-selector" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 16px; margin-top: auto;">
+          <div style="display: flex; align-items: center;">
+            {% if cfg.show_quantity_selector %}
+              <button type="button" class="qty-btn decrement-btn" style="border-radius: 6px 0 0 6px;" disabled>−</button>
+              <input type="number" class="cdo-qty-value qty-display-val" value="0" min="0" readonly style="width: 40px; height: 32px; text-align: center; border: 1px solid #f0f0f0; border-left: none; border-right: none; font-family: var(--combo-font);">
+              <button type="button" class="qty-btn increment-btn" style="border-radius: 0 6px 6px 0;">+</button>
+            {% else %}
+               <input type="hidden" class="cdo-qty-value" value="0">
+               <button type="button" class="qty-btn decrement-btn" style="display:none;" disabled></button>
+               <button type="button" class="qty-btn increment-btn" style="display:none;"></button>
+            {% endif %}
+          </div>
+          <button type="button" class="add-to-cart-btn" style="background: {{ cfg.add_btn_bg | default: '#000' }}; color: {{ cfg.add_btn_text_color | default: '#fff' }}; flex-grow: 1;">{{ cfg.add_btn_text | default: "Add" }}</button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% comment %} 4. Preview Bar Section {% endcomment %}
+  <div id="preview-bar" style="background: {{ cfg.preview_bar_background | default: '#000000' }}; color: {{ cfg.preview_bar_text_color | default: '#ffffff' }}; border-radius: {{ cfg.preview_bar_border_radius }}px; padding: {{ cfg.preview_bar_padding_vertical }}px {{ cfg.preview_bar_padding_horizontal }}px; min-height: 90px; font-size: 14px; display: {% if cfg.show_inline_preview_bar %}flex{% else %}none{% endif %}; flex-direction: column; align-items: center; gap: 12px; justify-content: center;">
+    <div class="preview-items" id="previewItems" style="display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; justify-content: center; padding: 10px 0; -webkit-overflow-scrolling: touch; width: 100%;">
+      <style>
+        .preview-items::-webkit-scrollbar { display: none; }
+        .preview-item-placeholder { border-color: {{ cfg.preview_bar_slot_border_color | default: '#ffffff' }} !important; color: {{ cfg.preview_bar_slot_icon_color | default: '#ffffff' }} !important; }
+      </style>
+      {% for i in (1..cfg.max_selections) %}
+        <div class="preview-item-placeholder" id="slot{{ i }}" style="width: var(--preview-shape-size); height: var(--preview-shape-size); border: 2px dashed rgba(255,255,255,0.2); color: rgba(255,255,255,0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; transition: all 0.3s ease;">+</div>
+      {% endfor %}
+    </div>
+    <div class="preview-pricing" id="previewPricing" style="display: none; flex-direction: row; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: center; width: 100%;">
+      <span style="font-size: {{ cfg.original_price_size }}px; color: {{ cfg.preview_bar_original_color | default: 'rgba(255,255,255,0.6)' }}; text-align: center; font-weight: 500;">
+        {{ cfg.preview_bar_total_label | default: "Total price =" }} <span id="previewOriginal" class="preview-original" style="text-decoration: line-through; display: none; margin-left: 4px;">Rs.0</span>
+        <span id="previewDiscounted" class="preview-discounted" style="font-size: {{ cfg.discounted_price_size }}px; color: {{ cfg.preview_bar_discounted_color | default: '#ffffff' }}; font-weight: 800; margin-left: 8px;">Rs.0</span>
+      </span>
+      <style>
+        .preview-checkout-btn {
+            background: {{ cfg.preview_bar_button_bg | default: '#ffffff' }} !important;
+            color: {{ cfg.preview_bar_button_text | default: '#000000' }} !important;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-family: var(--combo-font);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+        .preview-checkout-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .preview-checkout-btn:active {
+            transform: translateY(0);
+        }
+      </style>
+      <button id="previewCheckout" class="preview-checkout-btn" type="button">{{ cfg.checkout_btn_text | default: "Proceed to checkout" }}</button>
+    </div>
+  </div>
+</div>
+
+<div id="combo-toast" class="combo-toast"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🚀 Combo Design Four - Initializing...');
+  
+  const maxSelections = {{ cfg.max_selections | default: 5 }};
+  const discountPerc = {{ cfg.discount_percentage | default: 0 }};
+  const limitMsgPattern = `{{ cfg.limit_reached_message | default: 'Limit reached! You can only select [limit] items.' }}`;
+  const selected = {}; 
+
+  function getLimitMsg(val) {
+    const limit = val !== undefined ? val : maxSelections;
+    return limitMsgPattern.replace('{% raw %}{{limit}}{% endraw %}', limit).replace('[limit]', limit);
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('combo-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
+  }
+
+  function updateProgress(totalQty) {
+    const percentage = Math.min(100, (totalQty / maxSelections) * 100);
+    const fill = document.getElementById('progress-bar-fill');
+    const text = document.getElementById('progress-percentage');
+    const statusText = document.getElementById('progress-status');
+    const remainingCount = document.getElementById('items-remaining');
+
+    if (fill) fill.style.width = percentage + '%';
+    if (text) text.textContent = Math.round(percentage) + '%';
+    if (remainingCount) remainingCount.textContent = Math.max(0, maxSelections - totalQty);
+    
+    if (statusText) {
+      if (totalQty >= maxSelections) {
+        statusText.innerHTML = `<span style="color:#4CAF50; font-weight:700;">Bundle Complete! ${discountPerc > 0 ? discountPerc + '% discount applied! 🎉' : '🎉'}</span>`;
+      } else {
+        statusText.innerHTML = `Add <span id="items-remaining" style="font-weight:700;">${maxSelections - totalQty}</span> more items to complete your bundle`;
+      }
+    }
+  }
+
+  function updatePreview() {
+    const previewPricing = document.getElementById('previewPricing');
+    const items = Object.values(selected);
+    const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+
+    // Update Progress Bar
+    updateProgress(totalQty);
+
+    for (let i = 1; i <= maxSelections; i++) {
+      const slot = document.getElementById(`slot${i}`);
+      if (slot) {
+        slot.innerHTML = '+';
+        slot.style.border = '2px dashed rgba(255,255,255,0.2)';
+        slot.style.background = 'transparent';
+        slot.style.transform = 'scale(1)';
+      }
+    }
+
+    let slotIdx = 1;
+    items.forEach(item => {
+      for (let q = 0; q < item.qty; q++) {
+        if (slotIdx <= maxSelections) {
+          const slot = document.getElementById(`slot${slotIdx}`);
+          if (slot) {
+            slot.innerHTML = `<img src="${item.image}" style="width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);">`;
+            slot.style.border = '2px solid {{ cfg.preview_bar_slot_border_color | default: "#ffffff" }}';
+            slot.style.background = '#fff';
+            slot.style.transform = 'scale(1.1)';
+          }
+          slotIdx++;
+        }
+      }
+    });
+
+    if (totalQty > 0) {
+      previewPricing.style.display = 'flex';
+      let total = items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      let discountedTotal = total;
+      
+      const originalPriceEl = document.getElementById('previewOriginal');
+      const discountedPriceEl = document.getElementById('previewDiscounted');
+
+      if (totalQty >= maxSelections && discountPerc > 0) {
+        discountedTotal = total * (1 - (discountPerc / 100));
+        originalPriceEl.style.display = 'inline';
+        originalPriceEl.textContent = 'Rs.' + (total / 100).toFixed(2);
+      } else {
+        originalPriceEl.style.display = 'none';
+      }
+      
+      discountedPriceEl.textContent = 'Rs.' + (discountedTotal / 100).toFixed(2);
+    } else {
+      previewPricing.style.display = 'none';
+    }
+    
+    const previewItemsCont = document.getElementById('previewItems');
+    if (previewItemsCont) {
+      previewItemsCont.scrollTo({ left: previewItemsCont.scrollWidth, behavior: 'smooth' });
+    }
+  }
+
+  // Animation for icons
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = `
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(styleSheet);
+
+  document.querySelectorAll('.product-card').forEach(card => {
+    let id = card.dataset.id;
+    let price = parseFloat(card.dataset.price);
+    let image = card.dataset.image;
+    let title = card.dataset.title;
+
+    const priceEl = card.querySelector('.product-price');
+    const imageEl = card.querySelector('.product-image img');
+    const variantSelect = card.querySelector('.variant-select');
+    const decBtn = card.querySelector('.decrement-btn');
+    const incBtn = card.querySelector('.increment-btn');
+    const qtyDisplay = card.querySelector('.cdo-qty-value');
+    const addBtn = card.querySelector('.add-to-cart-btn');
+
+    function applyVariant(option) {
+      if (!option) return;
+      const prevId = id;
+      const newId = option.value;
+      const newPrice = parseFloat(option.dataset.price);
+      const newImage = option.dataset.image;
+      
+      if (selected[prevId]) {
+        const currentQty = selected[prevId].qty;
+        delete selected[prevId];
+        selected[newId] = { id: newId, price: newPrice, image: newImage, title: title, qty: currentQty };
+      }
+      
+      id = newId;
+      price = newPrice;
+      image = newImage;
+      card.dataset.id = newId;
+      card.dataset.price = newPrice;
+      card.dataset.image = newImage;
+      
+      if (priceEl) priceEl.textContent = 'Rs.' + (newPrice / 100).toFixed(2);
+      if (imageEl) imageEl.src = newImage;
+      
+      updateCard();
+    }
+
+    if (variantSelect) {
+      variantSelect.addEventListener('change', () => applyVariant(variantSelect.options[variantSelect.selectedIndex]));
+    }
+
+    function updateCard() {
+      const item = selected[id];
+      const qty = item ? item.qty : 0;
+      qtyDisplay.value = qty;
+      decBtn.disabled = qty === 0;
+      card.classList.toggle('selected', qty > 0);
+      
+      if (qty > 0) {
+        addBtn.textContent = 'Added';
+      } else {
+        addBtn.textContent = '{{ cfg.add_btn_text | default: "Add" }}';
+      }
+      
+      updatePreview();
+    }
+
+    qtyDisplay.addEventListener('change', () => {
+      let val = parseInt(qtyDisplay.value) || 0;
+      val = Math.max(0, val);
+      const otherTotal = Object.values(selected).reduce((sum, i) => sum + (i.qty || 0), 0) - (selected[id] ? selected[id].qty : 0);
+      if (otherTotal + val > maxSelections) {
+         val = maxSelections - otherTotal;
+         showToast(getLimitMsg(val));
+      }
+      qtyDisplay.value = val;
+      if (val === 0) {
+        if (selected[id]) delete selected[id];
+      } else {
+        selected[id] = { id, price, image, title, qty: val };
+      }
+      updateCard();
+    });
+
+    incBtn.addEventListener('click', () => {
+      const currentTotal = Object.values(selected).reduce((sum, i) => sum + (i.qty || 0), 0);
+      if (currentTotal >= maxSelections) {
+         showToast(getLimitMsg());
+         return;
+      }
+      if (!selected[id]) {
+        selected[id] = { id, price, image, title, qty: 1 };
+      } else {
+        selected[id].qty++;
+      }
+      updateCard();
+    });
+
+    decBtn.addEventListener('click', () => {
+      if (selected[id]) {
+        selected[id].qty--;
+        if (selected[id].qty === 0) delete selected[id];
+        updateCard();
+      }
+    });
+
+    addBtn.addEventListener('click', () => {
+      const currentTotal = Object.values(selected).reduce((sum, i) => sum + (i.qty || 0), 0);
+      const isQtyHidden = {{ cfg.show_quantity_selector | default: false }} === false;
+
+      if (selected[id]) {
+        if (isQtyHidden) {
+          delete selected[id];
+          updateCard();
+        } else {
+          if (currentTotal < maxSelections) {
+            selected[id].qty++;
+            updateCard();
+          } else {
+            showToast(getLimitMsg());
+          }
+        }
+      } else {
+        if (currentTotal < maxSelections) {
+          selected[id] = { id, price, image, title, qty: 1 };
+          updateCard();
+        } else {
+          showToast(getLimitMsg());
+        }
+      }
+    });
+
+    updateCard();
+  });
+
+  const checkoutBtn = document.getElementById('previewCheckout');
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener('click', async () => {
+      const items = Object.values(selected).map(item => ({
+        id: item.id,
+        quantity: item.qty
+      }));
+      if (items.length === 0) return;
+      checkoutBtn.disabled = true;
+      const originalText = checkoutBtn.innerText;
+      checkoutBtn.innerText = 'Adding...';
+      try {
+        const rootUrl = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root : '/';
+        const response = await fetch(rootUrl + 'cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items })
+        });
+        if (response.ok) {
+          window.location.href = rootUrl + 'cart';
+        } else {
+          showToast('Failed to add to cart.');
+          checkoutBtn.disabled = false;
+          checkoutBtn.innerText = originalText;
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('Error occurred.');
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerText = originalText;
+      }
+    });
+  }
+
+  updatePreview();
+  console.log('✅ Initialization complete!');
+});
+</script>

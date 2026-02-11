@@ -1,0 +1,31 @@
+{% schema %}
+{
+  "name": "Combo Builder Global",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}
+
+<script>
+  console.log("Combo Builder Global: Extension Block Rendered");
+  {% assign mf_app_url = shop.metafields.make_a_combo.app_url.value | default: shop.metafields.make_a_combo.app_url %}
+  window.makeAComboApp = {
+    appUrl: '{{ mf_app_url | default: "MISSING" }}'
+  };
+  console.log("Combo Builder Global: App URL ->", window.makeAComboApp.appUrl);
+</script>
+
+{% assign app_url = shop.metafields.make_a_combo.app_url.value | default: shop.metafields.make_a_combo.app_url %}
+
+{% if app_url and app_url != "https://your-app-domain.com" and app_url != "MISSING" %}
+  {% # theme-check-disable RemoteAsset %}
+  <script src="{{ app_url }}/combo-builder-loader.js?v={{ "now" | date: "%Y%m%d%H%M%S" }}" defer></script>
+  {% # theme-check-enable RemoteAsset %}
+  <script>console.log("Combo Builder Global: Script Tag injected with URL:", "{{ app_url }}/combo-builder-loader.js");</script>
+{% else %}
+  <script>console.warn("Combo Builder Global: Script NOT injected. App URL is invalid or missing:", "{{ app_url }}");</script>
+{% endif %}
+
+<style>
+  #make-a-combo-app:empty { display: none !important; }
+</style>

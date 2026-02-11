@@ -1,0 +1,46 @@
+DATABASE INPUTS & SCHEMA MAPPING
+
+1. MODEL: Template (Local Database)
+   Source: Prisma Schema (Template)
+   Purpose: Stores user-customized combo layouts.
+
+   INPUTS:
+   - title (String): The name given to the template by the user.
+     - Source: Save Modal -> Title Input
+     - Validation: Required, Non-empty.
+   - config (JSON): The complete configuration object of the visual builder.
+     - Source: React State (config object)
+     - Fields:
+       - layoutMode (String)
+       - banner (Object: show, text, color)
+       - products (Array: IDs)
+       - styling (Object: padding, colors, fonts)
+   - active (Boolean): Whether this template is currently published to the storefront.
+     - Source: Template Management -> Toggle Switch
+     - Default: false
+   - createdAt (DateTime): Timestamp of creation.
+     - Source: System (Auto-generated)
+
+2. MODULE: Discount Engine (Shopify GraphQL)
+   Source: Discount Creation Form
+   Purpose: Input parameters to create a discount in Shopify.
+
+   INPUTS:
+   - title (String): Internal name for the discount.
+   - code (String): The discount code entered by the customer (e.g., "SAVE20").
+     - Validation: Uppercase, Unique.
+   - type (Enum): "percentage" | "fixed_amount" | "buy_x_get_y".
+   - value (Decimal): The amount or percentage off.
+   - startsAt (DateTime): Start date/time.
+   - endsAt (DateTime): End date/time (Optional).
+   - usageLimit (Integer/Boolean): One use per customer?
+   - appliesTo (Object):
+     - Product IDs (if specific)
+     - Collection IDs (if specific)
+   - bogo_config (Object - if Type is BOGO):
+     - buy_quantity (Integer)
+     - get_quantity (Integer)
+
+3. MODEL: Session (System)
+   Source: Prisma Schema (Session)
+   Purpose: Authentication management (Managed by @shopify/shopify-app-remix).

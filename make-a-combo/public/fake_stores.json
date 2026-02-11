@@ -1,0 +1,47 @@
+{
+    "scenarios": {
+        "success": {
+            "status": "success",
+            "message": "Values matched successfully",
+            "data": [
+                {
+                    "id": 101,
+                    "name": "TechHaven",
+                    "category": "Electronics",
+                    "location": "San Francisco, CA",
+                    "rating": 4.8,
+                    "status": "Open"
+                },
+                {
+                    "id": 102,
+                    "name": "GreenLeaf Market",
+                    "category": "Groceries",
+                    "location": "Portland, OR",
+                    "rating": 4.5,
+                    "status": "Open"
+                },
+                {
+                    "id": 103,
+                    "name": "UrbanStyle",
+                    "category": "Fashion",
+                    "location": "New York, NY",
+                    "rating": 4.2,
+                    "status": "Closed"
+                },
+                {
+                    "id": 104,
+                    "name": "CozyCorner Books",
+                    "category": "Books",
+                    "location": "Seattle, WA",
+                    "rating": 4.9,
+                    "status": "Open"
+                }
+            ]
+        },
+        "error": {
+            "status": "error",
+            "message": "Error fetching data: Internal Server Error",
+            "code": 500
+        }
+    }
+}
