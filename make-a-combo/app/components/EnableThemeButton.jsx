@@ -1,31 +1,32 @@
-import { Button } from "@shopify/polaris";
+
+import { Button, ButtonGroup } from "@shopify/polaris";
+import { useFetcher } from "@remix-run/react";
+import { useState, useEffect } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 
 /**
- * EnableThemeButton - A reusable button component that redirects merchants
- * to the Shopify theme editor to enable the app extension.
+ * EnableThemeButton - A smart component that handles app enabling/disabling
+ * and provides a link to the Shopify theme editor.
  * 
  * @param {Object} props
- * @param {string} props.shopName - The shop name without .myshopify.com (e.g., "my-store")
- * @param {string} [props.variant="primary"] - Button variant (primary, secondary, etc.)
- * @param {string} [props.size="medium"] - Button size (small, medium, large)
- * @param {string} [props.children] - Custom button text
- * @returns {JSX.Element}
+ * @param {string} props.shopName - The shop name without .myshopify.com
+ * @param {boolean} props.isEnabled - Current enabled state of the app
+ * @param {string} [props.children] - Text for the Theme Editor link
  */
 export function EnableThemeButton({
     shopName,
-    variant = "primary",
-    size = "medium",
-    children = "Enable App in Theme"
+    isEnabled = false,
+    onToggle, // Legacy prop, kept for compatibility but unused
+    children = "Manage App in Theme Editor"
 }) {
     const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`;
 
     return (
         <Button
-            variant={variant}
-            size={size}
+            variant="primary"
             url={themeEditorUrl}
             external
-            target="_top"
+            target="_blank"
         >
             {children}
         </Button>

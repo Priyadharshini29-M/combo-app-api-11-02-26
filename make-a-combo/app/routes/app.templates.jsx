@@ -45,6 +45,29 @@ import path from 'path';
 // import prisma from "../db.server"; // Prisma disabled for Fake API
 import { authenticate } from '../shopify.server';
 
+const BASE_PHP_URL = "https://61fb-103-130-204-117.ngrok-free.app/make-a-combo";
+
+/**
+ * Direct function to sync data to PHP without using helpers
+ */
+const syncToPhp = async (payload, endpoint = "templates.php") => {
+  const url = `${BASE_PHP_URL}/${endpoint}`;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error(`[Templates UI] Direct PHP Error (${endpoint}):`, error.message);
+    throw error;
+  }
+};
+
 // --- Fake API Helper ---
 const FAKE_DB_PATH = path.join(process.cwd(), 'public', 'fake_db.json');
 
@@ -206,6 +229,18 @@ export const action = async ({ request }) => {
         templates.unshift(newTemplate);
         saveFakeTemplates(templates);
 
+        // Sync to MySQL
+        try {
+          await syncToPhp({
+            event: "create",
+            resource: "templates",
+            shop,
+            data: newTemplate
+          });
+        } catch (dbError) {
+          console.error("[Templates Sync] MySQL Create Error:", dbError.message);
+        }
+
         console.log(
           `[Combo App Console] Success Notification: Template created for ${shop}.`
         );
@@ -229,6 +264,19 @@ export const action = async ({ request }) => {
         if (index > -1) {
           templates[index].active = active;
           saveFakeTemplates(templates);
+
+          // Sync to MySQL
+          try {
+            await syncToPhp({
+              event: "update",
+              resource: "templates",
+              shop,
+              data: templates[index]
+            });
+          } catch (dbError) {
+            console.error("[Templates Sync] MySQL Toggle Error:", dbError.message);
+          }
+
           console.log(`[Templates Action] Toggled template ${id} to ${active}`);
           return json({
             success: true,
@@ -238,7 +286,21 @@ export const action = async ({ request }) => {
       } else if (intent === 'delete') {
         const filtered = templates.filter((t) => String(t.id) !== String(id));
         if (filtered.length < templates.length) {
+          const deletedTemplate = templates.find(t => String(t.id) === String(id));
           saveFakeTemplates(filtered);
+
+          // Sync to MySQL
+          try {
+            await syncToPhp({
+              event: "delete",
+              resource: "templates",
+              shop,
+              id
+            });
+          } catch (dbError) {
+            console.error("[Templates Sync] MySQL Delete Error:", dbError.message);
+          }
+
           console.log(`[Templates Action] Deleted template ${id}`);
           return json({ success: true, message: 'Template deleted' });
         } else {

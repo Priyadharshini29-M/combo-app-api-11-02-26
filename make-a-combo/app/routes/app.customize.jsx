@@ -275,8 +275,12 @@ export const loader = async ({ request }) => {
             id
             title
             handle
-            featuredImage {
-              url
+            featuredMedia {
+              preview {
+                image {
+                  url
+                }
+              }
             }
             variants(first: 1) {
               nodes {
@@ -822,7 +826,6 @@ export default function Customize() {
     variants: false,
     previewBar: false,
     discount: false,
-    styles: false,
     progressBar: false,
     stickyCheckoutBtn: false,
   });
@@ -4189,7 +4192,7 @@ function ComboPreview({
     const newItem = {
       id: product.id,
       variantId: selectedVariant.id,
-      image: selectedVariant.image?.src || selectedVariant.image?.url || product.image?.src || product.featuredImage?.url || 'https://placehold.co/100x100',
+      image: selectedVariant.image?.src || selectedVariant.image?.url || product.image?.src || product.featuredMedia?.preview?.image?.url || 'https://placehold.co/100x100',
       price: parseFloat(selectedVariant.price || 0),
       quantity: Number(qty),
       source: source
@@ -4786,7 +4789,7 @@ function ComboPreview({
               selectedVariant?.image?.src ||
               selectedVariant?.image?.url ||
               product.image?.src ||
-              product.featuredImage?.url ||
+              product.featuredMedia?.preview?.image?.url ||
               'https://placehold.co/300x300?text=Product'
             }
             alt={product.title}
@@ -5833,7 +5836,7 @@ function ComboPreview({
                     >
                       <img
                         src={
-                          product.featuredImage?.url ||
+                          product.featuredMedia?.preview?.image?.url ||
                           'https://placehold.co/300x300'
                         }
                         alt={product.title}

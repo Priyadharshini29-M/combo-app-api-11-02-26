@@ -19,6 +19,7 @@ import {
 import { ProductIcon } from '@shopify/polaris-icons';
 import { TitleBar, useAppBridge } from '@shopify/app-bridge-react';
 import { authenticate } from '../shopify.server';
+import { EnableThemeButton } from "../components/EnableThemeButton";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -32,6 +33,9 @@ export const loader = async ({ request }) => {
   try {
     const getScriptTags = await admin.graphql(`
       query {
+        shop {
+          id
+        }
         scriptTags(first: 50) {
           nodes {
             id
@@ -41,13 +45,15 @@ export const loader = async ({ request }) => {
       }
     `);
     const scriptTagsJson = await getScriptTags.json();
+    const shopGid = scriptTagsJson.data?.shop?.id;
+    const shopId = shopGid ? shopGid.split('/').pop() : null;
     const scriptNodes = scriptTagsJson.data?.scriptTags?.nodes || [];
 
     // Protocol-agnostic URL check (fixes http vs https mismatch)
     const normalizedTarget = SCRIPT_URL.replace(/^https?:/, "");
     const isEnabled = scriptNodes.some(s => s.src.replace(/^https?:/, "") === normalizedTarget);
 
-    return json({ isEnabled, shopName });
+    return json({ isEnabled, shopName, shopId });
   } catch (error) {
     return json({ isEnabled: false, error: error.message, shopName });
   }
@@ -121,12 +127,13 @@ export const action = async ({ request }) => {
 export default function Index() {
   const { isEnabled: initialEnabled, shopName } = useLoaderData();
   const fetcher = useFetcher();
-  const toggleFetcher = useFetcher();
+  // const toggleFetcher = useFetcher(); // Moved to EnableThemeButton
   const shopify = useAppBridge();
 
   const [appEnabled, setAppEnabled] = useState(initialEnabled);
 
-  // Synchronize state with fetcher results
+  // Toggle logic handled by EnableThemeButton now
+  /*
   useEffect(() => {
     if (toggleFetcher.data?.success) {
       setAppEnabled(toggleFetcher.data.status === "enabled");
@@ -148,6 +155,8 @@ export default function Index() {
       { method: "POST", action: "/api/toggle-app", encType: "application/json" }
     );
   };
+  */
+
   const isLoading =
     ['loading', 'submitting'].includes(fetcher.state) &&
     fetcher.formMethod === 'POST';
@@ -202,23 +211,11 @@ export default function Index() {
                     {" "}When enabled, merchant data is automatically synced to your dashboard and external webhook.
                   </Text>
                   <Box paddingBlockStart="200">
-                    <InlineStack gap="300">
-                      <Button
-                        variant="primary"
-                        tone={appEnabled ? "critical" : "success"}
-                        onClick={handleToggle}
-                        loading={toggleFetcher.state !== "idle"}
-                      >
-                        {appEnabled ? "Disable App" : "Enable App"}
-                      </Button>
-                      <Button
-                        url={`https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`}
-                        external
-                        target="_top"
-                      >
-                        Enable in Theme Editor
-                      </Button>
-                    </InlineStack>
+                    <EnableThemeButton
+                      shopName={shopName}
+                      isEnabled={appEnabled}
+                      onToggle={setAppEnabled}
+                    />
                   </Box>
                 </BlockStack>
 

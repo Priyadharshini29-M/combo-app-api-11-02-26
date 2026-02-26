@@ -1,0 +1,43 @@
+  // ... existing imports
+
+  const handleMainFormSubmit = (event) => {
+    event.preventDefault();
+    if (!dTitle) {
+      shopify.toast.show('Please enter a title', { isError: true });
+      return;
+    }
+
+    if (dType === 'buyxgety') {
+       if (!dBuyQuantity || !dGetQuantity) {
+           shopify.toast.show('Please fill quantity fields', { isError: true });
+           return;
+       }
+       if (dBuyProductSelection.length === 0 || dGetProductSelection.length === 0) {
+            shopify.toast.show('Please select buy and get products', { isError: true });
+            return;
+       }
+    }
+
+    const payload = {
+      title: dTitle,
+      type: dType,
+      value: dValue,
+      buyQuantity: dBuyQuantity,
+      getQuantity: dGetQuantity,
+      buyProduct: JSON.stringify({ type: dBuyProductType, selection: dBuyProductSelection }),
+      getProduct: JSON.stringify({ type: dGetProductType, selection: dGetProductSelection }),
+      minRequirementType: dMinRequirementType,
+      minRequirementValue: dMinRequirementValue,
+      maxUsage: dLimitUsage ? dMaxUsageLimit : '',
+      oncePerCustomer: dOncePerCustomer,
+      startDate: dStartsAt,
+      endDate: dEndsAt,
+      combinations: dCombinations,
+      appliesTo: appliesTo,
+      selectedProducts: JSON.stringify(selectedProducts),
+      selectedCollections: JSON.stringify(selectedCollections),
+      active: true 
+    };
+
+    fetcher.submit({ action: 'create', data: payload }, { method: "POST", encType: "application/json" });
+  };

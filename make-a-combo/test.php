@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Kolkata');
 // Set headers to allow cross-origin requests if needed
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST");

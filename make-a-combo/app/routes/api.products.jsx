@@ -20,8 +20,12 @@ export const loader = async ({ request }) => {
                 id
                 title
                 handle
-                featuredImage {
-                  url
+                featuredMedia {
+                  preview {
+                    image {
+                      url
+                    }
+                  }
                 }
                 variants(first: 10) {
                   nodes {
@@ -54,8 +58,12 @@ export const loader = async ({ request }) => {
               id
               title
               handle
-              featuredImage {
-                url
+              featuredMedia {
+                preview {
+                  image {
+                    url
+                  }
+                }
               }
               variants(first: 10) {
                 nodes {
@@ -82,7 +90,7 @@ export const loader = async ({ request }) => {
     const formattedProducts = products.map((p) => ({
       id: p.id,
       title: p.title,
-      image: p.featuredImage ? { src: p.featuredImage.url } : null,
+      image: p.featuredMedia?.preview?.image ? { src: p.featuredMedia.preview.image.url } : null,
       variants: (p.variants?.nodes || []).map((v) => ({
         id: v.id,
         title: v.title,

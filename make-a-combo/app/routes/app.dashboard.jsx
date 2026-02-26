@@ -1,10 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLoaderData, Link } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import fs from "fs";
 import path from "path";
 import { authenticate } from "../shopify.server";
-import { sendToPhp } from "../utils/api-helpers";
+import { formatToIST } from "../utils/api-helpers";
+
+const BASE_PHP_URL = "https://61fb-103-130-204-117.ngrok-free.app/make-a-combo";
+
+/**
+ * Direct function to sync data to PHP without using helpers
+ */
+const syncToPhp = async (payload, endpoint = "shop.php") => {
+  const url = `${BASE_PHP_URL}/${endpoint}`;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error(`[Dashboard UI] Direct PHP Error (${endpoint}):`, error.message);
+    throw error;
+  }
+};
 
 import {
   Page,
@@ -24,32 +47,32 @@ import { SearchIcon, HomeIcon } from "@shopify/polaris-icons";
 
 // Loader to fetch liquid files from the extensions directory and shop info
 export const loader = async ({ request }) => {
+  console.log("--------------------------------------------------");
+  console.log(`[Dashboard Loader] 📥 Incoming request: ${new Date().toISOString()}`);
+
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
   const shopName = shop.replace('.myshopify.com', '');
-
-  // 1. Check App Status (ScriptTag Check)
-  const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
-  const APP_URL = rawAppUrl.replace(/\/$/, "");
-  const SCRIPT_URL = `${APP_URL}/combo-builder-loader.js`;
+  const EXTENSION_UUID = "9be6ff79-377e-fec3-de20-e5290c5b53fd07498442";
 
   let isEnabled = false;
+  let appPlan = "Free";
+  let activeThemeName = "N/A";
+  let themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`;
+
   try {
-    // Fetch comprehensive shop data and script tags in one go
+    // 1. Fetch Shop Info, Themes, and Metafield in one go
     const shopQuery = `
       query {
         shop {
           id
           name
-          createdAt
           myshopifyDomain
           plan { displayName }
+          metafield(namespace: "make_a_combo", key: "app_url") { value }
         }
-        scriptTags(first: 50) {
-          nodes { id src }
-        }
-        themes(first: 50) {
-          nodes { name role }
+        themes(first: 5, roles: [MAIN]) {
+          nodes { id name role }
         }
         currentAppInstallation {
           activeSubscriptions { name status }
@@ -59,63 +82,126 @@ export const loader = async ({ request }) => {
     const response = await admin.graphql(shopQuery);
     const result = await response.json();
 
-    const shopInfo = result.data?.shop || {};
-    const scriptTags = result.data?.scriptTags?.nodes || [];
-    const themes = result.data?.themes?.nodes || [];
-    const subscriptions = result.data?.currentAppInstallation?.activeSubscriptions || [];
+    if (result.errors) {
+      console.error("[Dashboard Loader] GraphQL Errors:", result.errors);
+    }
 
-    isEnabled = scriptTags.some(s => s.src === SCRIPT_URL);
-    const activeTheme = themes.find(t => t.role === "MAIN") || themes[0];
-    const appPlan = subscriptions.length > 0 ? subscriptions[0].name : "Free";
+    const data = result.data || {};
+    const shopInfo = data.shop || {};
+    const themes = data.themes?.nodes || [];
+    const subscriptions = data.currentAppInstallation?.activeSubscriptions || [];
+    const appUrlMetafied = shopInfo.metafield?.value;
 
-    // 2. Immediately Log Status and Data to PHP
-    console.log(`[Dashboard Loader] 📡 Auto-syncing status for ${shop}: ${isEnabled ? 'Enabled' : 'Disabled'}`);
+    appPlan = subscriptions.length > 0 ? subscriptions[0].name : "Free";
+    const activeTheme = themes[0];
 
-    await sendToPhp({
-      event: isEnabled ? "app_status_active" : "app_status_inactive",
-      resource: "store_status_check",
-      shop: shop,
-      data: {
-        shop_id: shopInfo.myshopifyDomain || shop,
-        domain: shopInfo.myshopifyDomain,
-        store_name: shopInfo.name,
-        status: isEnabled ? "enabled" : "disabled",
-        app_plan: appPlan,
-        shopify_plan: shopInfo.plan?.displayName || "N/A",
-        theme_name: activeTheme?.name || "N/A",
-        updated_at: new Date().toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        }),
-        source: "dashboard_load"
+    if (activeTheme) {
+      activeThemeName = activeTheme.name;
+    }
+
+    // 2. Status Detection Logic
+    isEnabled = false;
+    let debugLog = `[${new Date().toISOString()}] Starting Theme Inspection\n`;
+
+    if (appUrlMetafied && appUrlMetafied !== "DISABLED" && appUrlMetafied !== "MISSING") {
+      isEnabled = true;
+      debugLog += "Metafield: Active.\n";
+    }
+
+    if (activeTheme) {
+      try {
+        const themeId = activeTheme.id.split('/').pop();
+        debugLog += `Theme: ${activeTheme.name} (${themeId})\n`;
+
+        const response = await admin.rest.get({
+          path: `themes/${themeId}/assets`,
+          query: { "asset[key]": "config/settings_data.json" }
+        });
+
+        if (response.ok) {
+          const body = await response.json();
+          const assetValue = body.asset?.value;
+          if (assetValue) {
+            const settingsData = JSON.parse(assetValue);
+            const current = settingsData.current || {};
+            const blocks = current.blocks || {};
+            const blockKeys = Object.keys(blocks);
+
+            debugLog += `Current Keys: ${Object.keys(current).join(', ')}\n`;
+            debugLog += `Total Blocks: ${blockKeys.length}\n`;
+
+            blockKeys.forEach(k => {
+              const b = blocks[k];
+              debugLog += `Block [${k}] Type: ${b.type} Disabled: ${b.disabled}\n`;
+            });
+
+            const matchedKey = blockKeys.find(key => {
+              const type = blocks[key].type || "";
+              return type.includes(EXTENSION_UUID) || type.includes("combo-global");
+            });
+
+            if (matchedKey) {
+              isEnabled = blocks[matchedKey].disabled !== true;
+              debugLog += `🎯 Match: ${matchedKey} | Final Result: ${isEnabled}\n`;
+            } else {
+              debugLog += `⚠️ No block matched UUID ${EXTENSION_UUID}\n`;
+            }
+          } else {
+            debugLog += `❌ Body.asset.value missing.\n`;
+          }
+        } else {
+          debugLog += `❌ REST failed: ${response.status}\n`;
+        }
+      } catch (e) {
+        debugLog += `❌ Error: ${e.message}\n`;
       }
-    });
+    }
+
+    debugLog += `Final Result: ${isEnabled}\n`;
+    try { fs.writeFileSync('D:\\Digifyce\\Make-a-combo\\make-a-combo\\THEME_DEBUG.log', debugLog); } catch (e) { }
+
+    // 3. Status Reporting
+    const dashboardShopData = {
+      shop_id: shopInfo.myshopifyDomain || shop,
+      store_name: shopInfo.name,
+      status: isEnabled ? "enabled" : "disabled",
+      app_plan: appPlan,
+      theme_name: activeThemeName,
+      timestamp: formatToIST(),
+      source: "dashboard_load"
+    };
+
+
+
+    // Save to shop.php (MySQL Sync - Direct)
+    try {
+      const dbResult = await syncToPhp({
+        event: "shop_sync",
+        resource: "shop",
+        shop: shop,
+        data: dashboardShopData
+      }, "shop.php");
+      console.log("[Dashboard] ✅ MySQL Shop Sync Result:", dbResult);
+    } catch (dbErr) {
+      console.error("[Dashboard] MySQL Shop Sync Error:", dbErr.message);
+    }
 
   } catch (err) {
-    console.error("[Dashboard Loader] ❌ Status check failed:", err.message);
+    console.error("[Dashboard Status] ❌ Fatal Error:", err.message);
   }
 
-  const blocksDir = path.join(
-    process.cwd(),
-    "extensions",
-    "combo-templates",
-    "blocks",
-  );
-  let files = [];
+  // 5. Read Layout Files
+  const blocksDir = path.join(process.cwd(), "extensions", "combo-templates", "blocks");
+  let layoutFiles = [];
   try {
     if (fs.existsSync(blocksDir)) {
-      files = fs.readdirSync(blocksDir).filter((f) => f.endsWith(".liquid"));
+      layoutFiles = fs.readdirSync(blocksDir).filter((f) => f.endsWith(".liquid"));
     }
   } catch (e) {
     console.error("Error reading blocks directory:", e);
   }
-  return json({ layoutFiles: files, shopName, initialEnabled: isEnabled });
+
+  return json({ layoutFiles, shopName, isEnabled });
 };
 
 // Layout designs metadata
@@ -177,13 +263,31 @@ const layoutMetadata = [
 
 ];
 
+import { EnableThemeButton } from "../components/EnableThemeButton";
+
+// ... inside Dashboard component ...
 export default function Dashboard() {
-  const { layoutFiles, shopName, initialEnabled } = useLoaderData();
+  const { layoutFiles, shopName, isEnabled } = useLoaderData();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [appStatus, setAppStatus] = useState(isEnabled);
+
+  // Auto-initialize Backend Metafields on load
+  useEffect(() => {
+    console.log("[Dashboard] 🛠️ Ensuring App Configuration...");
+    fetch("/api/toggle-app", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true })
+    }).catch(e => console.error("Auto-config failed", e));
+  }, []);
+
+  useEffect(() => {
+    setAppStatus(isEnabled);
+  }, [isEnabled]);
 
 
   const layoutDesigns = layoutFiles
@@ -259,80 +363,58 @@ export default function Dashboard() {
         </Card>
 
 
-        {/* Enable App in Theme Section */}
+        {/* App Status Section */}
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="start">
               <BlockStack gap="200">
                 <Text variant="headingLg" as="h2">
-                  🚀 Enable App in Your Theme
+                  {appStatus ? "✅ App Status: Active" : "🚀 Enable App in Your Theme"}
                 </Text>
                 <Text variant="bodyMd" tone="subdued">
-                  To display combo pages on your storefront, you need to enable the app extension in your active theme.
+                  {appStatus
+                    ? "The app is active and visible on your storefront."
+                    : "To display combo pages, you must enable the app in the Theme Editor."}
                 </Text>
               </BlockStack>
-              <Badge tone="attention">Action Required</Badge>
+              <Badge tone={appStatus ? "success" : "attention"}>
+                {appStatus ? "Active" : "Action Required"}
+              </Badge>
             </InlineStack>
 
             <Divider />
 
             <BlockStack gap="300">
               <Text variant="headingMd" as="h3">
-                Quick Setup Steps:
+                {appStatus ? "How to Disable:" : "How to Enable:"}
               </Text>
               <List type="number">
-                <List.Item>Click the button below to open your theme editor</List.Item>
-                <List.Item>Find "App embeds" in the left sidebar</List.Item>
-                <List.Item>Toggle ON "Make-a-combo" to enable the app</List.Item>
-                <List.Item>Click "Save" in the top right corner</List.Item>
+                <List.Item>Click the button below to open the Theme Editor.</List.Item>
+                <List.Item>In "App Embeds", toggle "Make-a-combo" <strong>{appStatus ? "OFF" : "ON"}</strong>.</List.Item>
+                <List.Item>Click "Save".</List.Item>
               </List>
             </BlockStack>
 
-            {/* Visual Guide */}
-            <div
-              style={{
-                width: "100%",
-                borderRadius: "12px",
-                overflow: "hidden",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                border: "2px dashed #e0e0e0",
-              }}
-            >
-              <img
-                src="https://placehold.co/1200x400/1a1a1a/ffffff?text=Theme+Editor+%E2%86%92+App+Embeds+%E2%86%92+Toggle+Make-a-combo+ON+%E2%86%92+Save"
-                alt="Visual guide for enabling app in theme"
-                style={{
-                  width: "100%",
-                  height: "auto",
-                  display: "block",
-                }}
+            <InlineStack align="center" gap="400">
+              <EnableThemeButton
+                shopName={shopName}
+                children={appStatus ? "Disable App in Theme Editor" : "Enable App in Theme Editor"}
               />
-            </div>
-
-            <InlineStack align="center">
-              <Button
-                variant="primary"
-                size="large"
-                url={`https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`}
-                external
-                target="_top"
-              >
-                Enable App in Theme Editor
-              </Button>
             </InlineStack>
 
             <Card background="bg-surface-secondary">
               <BlockStack gap="200">
                 <Text variant="headingSm" as="h4">
-                  💡 Pro Tip
+                  💡 Note
                 </Text>
                 <Text variant="bodyMd" tone="subdued">
-                  After enabling the app, you can add combo blocks to any page using the theme editor's "Add section" or "Add block" options.
+                  If you change the setting in the Theme Editor, please refresh this dashboard to see the updated status.
                 </Text>
               </BlockStack>
             </Card>
           </BlockStack>
         </Card>
+
 
         {/* Plan Status Section */}
         <Card>

@@ -7,6 +7,7 @@ import polarisTranslations from "@shopify/polaris/locales/en.json";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
+import { formatToIST } from "../utils/api-helpers";
 import globalStyles from "../global.css?url";
 
 export const links = () => [
@@ -28,6 +29,9 @@ export const loader = async ({ request }) => {
         plan {
           displayName
         }
+        metafield(namespace: "make_a_combo", key: "app_url") {
+          value
+        }
       }
       themes(first: 50) {
         nodes {
@@ -41,11 +45,7 @@ export const loader = async ({ request }) => {
           status
         }
       }
-      scriptTags(first: 50) {
-        nodes {
-          src
-        }
-      }
+
     }
   `;
 
@@ -70,25 +70,10 @@ export const loader = async ({ request }) => {
     const activeTheme = themes.find((t) => t.role === "MAIN") || themes[0];
     const appPlan = subscriptions.length > 0 ? subscriptions[0].name : "Free";
 
-    // Format Date to IST
-    const formatToIST = (dateString = null) => {
-      const date = dateString ? new Date(dateString) : new Date();
-      return date.toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
-    };
-
     const APP_URL = process.env.SHOPIFY_APP_URL || "";
-    const SCRIPT_URL = `${APP_URL}/combo-builder-loader.js`;
-    const scriptTags = data?.scriptTags?.nodes || [];
-    const isEnabled = !!scriptTags.find(s => s.src === SCRIPT_URL);
+    const appUrlMetafield = shop.metafield?.value;
+    const isEnabled = !!appUrlMetafield && appUrlMetafield !== "DISABLED" && appUrlMetafield !== "MISSING";
+    console.log("[App Loader] Metafield Value:", appUrlMetafield, "Status:", isEnabled);
 
     // Proactive Sync: Ensure the App URL metafield is always up to date
     // This solves the issue of stale ngrok URLs in the storefront
