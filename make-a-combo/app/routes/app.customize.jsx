@@ -1143,7 +1143,82 @@ const DESKTOP_PREVIEW_BASE_HEIGHT = 864;
 const MOBILE_PREVIEW_BASE_WIDTH = 390;
 const MOBILE_PREVIEW_BASE_HEIGHT = 844;
 
+// Maps Shopify block names → internal layout keys
+const LAYOUT_MAP = {
+  combo_design_one: 'layout1',
+  combo_design_two: 'layout2',
+  combo_design_three: 'layout3',
+  combo_design_four: 'layout4',
+  combo_main: 'layout1',
+  custom_bundle_layout: 'layout1',
+};
+
+// Template catalogue shown in the picker screen
+const TEMPLATE_CATALOGUE = [
+  {
+    id: 'combo_main',
+    title: 'The Guided Architect',
+    description:
+      'A conversion-focused multi-step builder with progress tracking and tiered discount logic.',
+    img: '/combo-design-one-preview.png',
+    fallbackImg:
+      'https://placehold.co/400x300/000000/ffffff?text=Guided+Architect',
+    badge: 'Core',
+    badgeTone: 'success',
+    blockName: 'combo_main',
+    features: [
+      'Visual progress tracking',
+      'Tiered discount engine',
+      'Step-by-step selection flow',
+      'Sticky summary footer',
+      'Ideal for complex kits',
+    ],
+    bestFor: 'Complex bundles and high-value kits',
+  },
+  {
+    id: 'combo_design_two',
+    title: 'The Velocity Stream',
+    description:
+      'An immersive, motion-driven experience featuring an auto-scrolling carousel for maximum engagement.',
+    img: '/combo-design-two-preview.png',
+    fallbackImg:
+      'https://placehold.co/400x300/000000/ffffff?text=Motion+Slider',
+    badge: 'Trending',
+    badgeTone: 'success',
+    blockName: 'combo_design_two',
+    features: [
+      'Smooth auto-scroll motion',
+      'Touch-optimized swiping',
+      'Dynamic navigation cues',
+      'Infinite loop storytelling',
+      'Visual-first discovery',
+    ],
+    bestFor: 'Visual storytelling and featured promotions',
+  },
+  {
+    id: 'combo_design_four',
+    title: 'The Editorial Split',
+    description:
+      'A premium, sophisticated layout that pairs high-impact imagery with detailed product storytelling.',
+    img: '/combo-design-four-preview.png',
+    fallbackImg:
+      'https://placehold.co/400x300/000000/ffffff?text=Editorial+Split',
+    badge: 'Premium',
+    badgeTone: 'success',
+    blockName: 'combo_design_four',
+    features: [
+      'Luxe split-screen design',
+      'Detail-rich narratives',
+      'High-contrast callouts',
+      'Dark mode elegance',
+      'Psychology-driven flow',
+    ],
+    bestFor: 'Luxury items and high-impact product stories',
+  },
+];
+
 export default function Customize() {
+
   const shopify = useAppBridge();
   const {
     activeDiscounts = [],
@@ -1466,31 +1541,42 @@ export default function Customize() {
     setLocalActiveDiscounts(activeDiscounts);
   }, [activeDiscounts]);
 
-  // Handle layout parameter from URL
+  // Determine initial pickedLayout:
+  //  - If editing an existing template, skip picker entirely
+  //  - If a ?layout= param is present (legacy direct link), pre-pick it
+  //  - Otherwise null → show picker
+  const initPickedLayout = (() => {
+    if (initialTemplate) return initialTemplate.config?.layout || 'layout1';
+    const lp = searchParams.get('layout');
+    if (lp) return LAYOUT_MAP[lp] || 'layout1';
+    return null;
+  })();
+
+  const [pickedLayout, setPickedLayout] = useState(initPickedLayout);
+
+  // Keep pickedLayout in sync when URL search params change
   useEffect(() => {
-    const layoutParam = searchParams.get('layout');
-    console.log('URL layout parameter:', layoutParam);
-
-    if (layoutParam) {
-      // Map blockName to layout value
-      const layoutMap = {
-        combo_design_one: 'layout1',
-        combo_design_two: 'layout2',
-        combo_design_three: 'layout3',
-        combo_design_four: 'layout4',
-        combo_main: 'layout1',
-        custom_bundle_layout: 'layout1', // Default fallback
-      };
-
-      const mappedLayout = layoutMap[layoutParam] || 'layout1';
-      console.log('Mapped layout:', mappedLayout);
-
-      setConfig((prev) => ({
-        ...prev,
-        layout: mappedLayout,
-      }));
+    const lp = searchParams.get('layout');
+    if (lp && !pickedLayout) {
+      const mapped = LAYOUT_MAP[lp] || 'layout1';
+      setPickedLayout(mapped);
+      setConfig((prev) => ({ ...prev, layout: mapped }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // Called when user explicitly selects a template from the picker
+  const handlePickLayout = useCallback(
+    (blockName) => {
+      const mapped = LAYOUT_MAP[blockName] || 'layout1';
+      setPickedLayout(mapped);
+      setConfig((prev) => ({ ...prev, layout: mapped }));
+    },
+    // LAYOUT_MAP is stable (module-level constant)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
 
   // Real-time product fetching for multi-step bundles (Layout 1)
   useEffect(() => {
@@ -1937,7 +2023,156 @@ export default function Customize() {
     discountTypeOptions.find((opt) => opt.value === selectedDiscountType) ||
     discountTypeOptions[0];
 
+  // ── Template picker gate ──────────────────────────────────────────────────
+  // Show the picker ONLY when creating a new template with no layout chosen.
+  if (!pickedLayout && !initialTemplate) {
+    return (
+      <Page
+        title="Customize Template"
+        backAction={{ content: 'Dashboard', url: '/app/dashboard' }}
+      >
+        <div style={{ padding: '12px 0 24px' }}>
+          <Text variant="headingLg" as="h2">
+            Choose a Template to Get Started
+          </Text>
+          <div style={{ marginTop: 8 }}>
+            <Text variant="bodyMd" tone="subdued">
+              Select one of the layouts below. You can fully customise colours,
+              content, and settings in the next step.
+            </Text>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '24px',
+            marginBottom: '40px',
+          }}
+        >
+          {TEMPLATE_CATALOGUE.map((tpl) => (
+            <div
+              key={tpl.id}
+              style={{
+                border: '2px solid #e1e3e5',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#fff',
+                cursor: 'pointer',
+                transition:
+                  'border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#008060';
+                e.currentTarget.style.boxShadow =
+                  '0 8px 24px rgba(0,128,96,0.12)';
+                e.currentTarget.style.transform = 'translateY(-4px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#e1e3e5';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              {/* Preview image */}
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={tpl.img}
+                  alt={tpl.title}
+                  onError={(e) => {
+                    e.target.src = tpl.fallbackImg;
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '200px',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    background:
+                      tpl.badgeTone === 'success' ? '#e3f1df' : '#e3e8f3',
+                    color:
+                      tpl.badgeTone === 'success' ? '#1a7f45' : '#4455aa',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {tpl.badge}
+                </div>
+              </div>
+
+              {/* Card body */}
+              <div style={{ padding: '20px' }}>
+                <div style={{ marginBottom: 8 }}>
+                  <Text variant="headingMd" as="h3" fontWeight="semibold">
+                    {tpl.title}
+                  </Text>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <Text variant="bodyMd" tone="subdued">
+                    {tpl.description}
+                  </Text>
+                </div>
+
+                {/* Features list */}
+                <ul
+                  style={{
+                    margin: '0 0 20px',
+                    padding: '0 0 0 18px',
+                    fontSize: '13px',
+                    color: '#444',
+                    lineHeight: '1.7',
+                  }}
+                >
+                  {tpl.features.map((f, i) => (
+                    <li key={i}>{f}</li>
+                  ))}
+                </ul>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#777',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Best for: {tpl.bestFor}
+                  </div>
+                  <Button
+                    variant="primary"
+                    id={`select-template-${tpl.id}`}
+                    onClick={() => handlePickLayout(tpl.blockName)}
+                  >
+                    Use Template
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Page>
+    );
+  }
+
+  // ── Full customisation editor ────────────────────────────────────────────
   return (
+
     <Page
       title="Customize Template"
       titleMetadata={

@@ -63,7 +63,41 @@ function showToast(msg) {
 /* ===================== VISITOR TRACKING ===================== */
 function trackVisit(templateName) {
   if (!templateName) return;
-  fetch('/apps/combo/visitors.php?template_name=' + encodeURIComponent(templateName)).catch(function(){});
+
+  let shop = '';
+
+  // ✅ Primary source (Shopify global)
+  if (window.Shopify && window.Shopify.shop) {
+    shop = window.Shopify.shop;
+  }
+
+  // ✅ Fallback: meta tag (more reliable across themes)
+  if (!shop) {
+    const meta = document.querySelector('meta[name="shopify-shop-domain"]');
+    if (meta) {
+      shop = meta.getAttribute('content');
+    }
+  }
+
+  // ❌ If still missing, stop request
+  if (!shop) {
+    console.warn('Shop domain missing. Skipping visitor tracking.');
+    return;
+  }
+
+  // ✅ Send correct parameter name: shop_domain
+  fetch('/apps/combo/visitors.php?template_name=' 
+    + encodeURIComponent(templateName) 
+    + '&shop_domain=' + encodeURIComponent(shop))
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        console.error('Visitor tracking failed:', data);
+      }
+    })
+    .catch(err => {
+      console.error('Tracking error:', err);
+    });
 }
 
 function isProductInStock(product) {

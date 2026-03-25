@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLoaderData, Link } from '@remix-run/react';
+import { useLoaderData, Link } from '@remix-run/react';
 import { json } from '@remix-run/node';
 import fs from 'fs';
 import path from 'path';
@@ -10,9 +10,7 @@ import { EnableThemeButton } from '../components/EnableThemeButton';
 import {
   Page,
   Card,
-  TextField,
   Button,
-  Modal,
   BlockStack,
   InlineStack,
   Text,
@@ -21,7 +19,7 @@ import {
   List,
   Divider,
 } from '@shopify/polaris';
-import { SearchIcon, HomeIcon } from '@shopify/polaris-icons';
+import { HomeIcon } from '@shopify/polaris-icons';
 
 const EXTENSION_UUID = '9be6ff79-377e-fec3-de20-e5290c5b53fd07498442';
 
@@ -227,38 +225,7 @@ const layoutMetadata = [
 // ... inside Dashboard component ...
 export default function Dashboard() {
   const { shopName, isEnabled } = useLoaderData();
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedLayout, setSelectedLayout] = useState(null);
-  const [isNavigating, setIsNavigating] = useState(false);
   const [appStatus, setAppStatus] = useState(isEnabled);
-
-  const layoutDesigns = layoutMetadata;
-
-  const openModal = (layout) => {
-    setSelectedLayout(layout);
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    setSelectedLayout(null);
-  };
-
-  const handleCustomize = () => {
-    if (selectedLayout) {
-      setIsNavigating(true);
-      // Navigate immediately without closing modal first (faster redirect)
-      navigate(`/app/customize?layout=${selectedLayout.blockName}`);
-    }
-  };
-
-  const filteredLayouts = layoutDesigns.filter(
-    (layout) =>
-      layout.title.toLowerCase().includes(search.toLowerCase()) ||
-      layout.description.toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <Page
@@ -388,256 +355,30 @@ export default function Dashboard() {
           </InlineStack>
         </Card>
 
-        {/* 2. Search Bar with Create Button */}
+        {/* 2. Quick Action — Go to Customize */}
         <Card>
           <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <div style={{ flex: 1, maxWidth: '700px' }}>
-              <TextField
-                placeholder="Search for layouts..."
-                value={search}
-                onChange={setSearch}
-                prefix={<Icon source={SearchIcon} />}
-                clearButton
-                onClearButtonClick={() => setSearch('')}
-                autoComplete="off"
-              />
-            </div>
+            <BlockStack gap="100">
+              <Text variant="headingMd" as="h3">
+                Ready to build your combo page?
+              </Text>
+              <Text variant="bodyMd" tone="subdued">
+                Head to the Customize module to choose a layout and start
+                personalising your bundle experience.
+              </Text>
+            </BlockStack>
             <Link
               to="/app/customize"
               prefetch="intent"
               style={{ textDecoration: 'none' }}
             >
               <Button variant="primary" size="large">
-                Customize the default layout
+                Customize Template
               </Button>
             </Link>
           </InlineStack>
         </Card>
-
-        {/* 3. Layout Design Preview Cards */}
-        <BlockStack gap="400">
-          <Text variant="headingLg" as="h2">
-            Choose Your Layout Design
-          </Text>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '24px',
-            }}
-          >
-            {filteredLayouts.map((layout) => (
-              <Card key={layout.id} padding="0">
-                <div
-                  onClick={() => openModal(layout)}
-                  style={{
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow =
-                      '0 8px 24px rgba(0,0,0,0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  {/* Image */}
-                  <div style={{ position: 'relative' }}>
-                    <img
-                      src={layout.img}
-                      alt={layout.title}
-                      onError={(e) => {
-                        e.target.src = layout.fallbackImg;
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '200px',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                      }}
-                    >
-                      <Badge tone={layout.badgeTone}>{layout.badge}</Badge>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div style={{ padding: '20px' }}>
-                    <BlockStack gap="300">
-                      <Text variant="headingMd" as="h3" fontWeight="semibold">
-                        {layout.title}
-                      </Text>
-                      <Text variant="bodyMd" tone="subdued">
-                        {layout.description}
-                      </Text>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <div style={{ flex: 1 }}>
-                          <Button
-                            fullWidth
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openModal(layout);
-                            }}
-                          >
-                            Details
-                          </Button>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Link
-                            to={`/app/customize?layout=${layout.blockName}`}
-                            prefetch="intent"
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <Button variant="primary" fullWidth>
-                              Customize
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </BlockStack>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {filteredLayouts.length === 0 && (
-            <Card>
-              <BlockStack gap="200" inlineAlign="center">
-                <Text variant="headingMd" tone="subdued">
-                  No layouts found
-                </Text>
-                <Text variant="bodyMd" tone="subdued">
-                  Try adjusting your search terms
-                </Text>
-              </BlockStack>
-            </Card>
-          )}
-        </BlockStack>
       </BlockStack>
-
-      {/* Modal with Layout Details */}
-      <Modal
-        open={modalOpen}
-        onClose={closeModal}
-        title={selectedLayout?.title || ''}
-        primaryAction={{
-          content: 'Customize This Layout',
-          onAction: handleCustomize,
-          loading: isNavigating,
-        }}
-        secondaryActions={[
-          {
-            content: 'Cancel',
-            onAction: closeModal,
-          },
-        ]}
-      >
-        {selectedLayout && (
-          <Modal.Section>
-            <BlockStack gap="500">
-              {/* Featured Layout Card */}
-              <div style={{ maxWidth: '400px', margin: '0 auto' }}>
-                <Card padding="0">
-                  <div style={{ position: 'relative' }}>
-                    <img
-                      src={selectedLayout.img}
-                      alt={selectedLayout.title}
-                      onError={(e) => {
-                        e.target.src = selectedLayout.fallbackImg;
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '220px',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                      }}
-                    >
-                      <Badge tone={selectedLayout.badgeTone}>
-                        {selectedLayout.badge}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div style={{ padding: '20px' }}>
-                    <BlockStack gap="300">
-                      <Text variant="headingMd" as="h3" fontWeight="semibold">
-                        {selectedLayout.title}
-                      </Text>
-                      <Text variant="bodyMd" tone="subdued">
-                        {selectedLayout.description}
-                      </Text>
-                    </BlockStack>
-                  </div>
-                </Card>
-              </div>
-
-              <Divider />
-
-              {/* Description & Features */}
-              <BlockStack gap="400">
-                <Text variant="headingMd" as="h3">
-                  About This Layout
-                </Text>
-                <Text variant="bodyMd" tone="subdued">
-                  {selectedLayout.description}
-                </Text>
-
-                <Text variant="headingMd" as="h3">
-                  Key Features
-                </Text>
-                <List type="bullet">
-                  {selectedLayout.features.map((feature, index) => (
-                    <List.Item key={index}>{feature}</List.Item>
-                  ))}
-                </List>
-              </BlockStack>
-
-              <Divider />
-
-              {/* Best For */}
-              <BlockStack gap="200">
-                <Text variant="headingMd" as="h3">
-                  Best For
-                </Text>
-                <InlineStack gap="200" blockAlign="center">
-                  <Badge tone="info">Recommended</Badge>
-                  <Text variant="bodyMd">{selectedLayout.bestFor}</Text>
-                </InlineStack>
-              </BlockStack>
-
-              {/* CTA Section */}
-              <Card background="bg-surface-secondary">
-                <BlockStack gap="300">
-                  <Text variant="headingSm" as="h4">
-                    Ready to get started?
-                  </Text>
-                  <Text variant="bodyMd" tone="subdued">
-                    Click "Customize This Layout" to personalize colors,
-                    content, and settings to match your brand.
-                  </Text>
-                </BlockStack>
-              </Card>
-            </BlockStack>
-          </Modal.Section>
-        )}
-      </Modal>
     </Page>
   );
 }
