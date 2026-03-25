@@ -1,0 +1,608 @@
+/* Combo Design One - Base Layout Styles */
+.combo-design-one {
+    font-family: inherit;
+    color: #333;
+    max-width: var(--cdo-container-width, 100%);
+    margin: 0 auto;
+    padding: clamp(12px, 2.5vw, 24px);
+    background: #fff;
+}
+
+.cdo-header {
+    width: var(--cdo-title-width, 100%);
+    margin: 0 auto;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    text-align: center;
+}
+
+/* Progress Bar */
+.cdo-progress-container {
+    background: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 30px;
+    position: sticky;
+    top: 10px;
+    z-index: 90;
+}
+
+.cdo-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.cdo-progress-bar-bg {
+    background: #f0f0f0;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.cdo-progress-bar-fill {
+    background: var(--cdo-progress-bar-color);
+    height: 100%;
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+/* Banner */
+.cdo-banner {
+    width: var(--cdo-banner-width, 100%);
+    margin: 0 auto 30px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.cdo-banner img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Step Section */
+.cdo-step {
+    margin-bottom: 48px;
+}
+
+.cdo-step-header {
+    margin-bottom: 20px;
+}
+
+.cdo-step-title {
+    font-size: 22px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cdo-step-subtitle {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Grid Layouts */
+.cdo-layout-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cdo-desktop-columns, 3), 1fr);
+    gap: 20px;
+}
+
+.cdo-layout-slider {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.cdo-layout-slider::-webkit-scrollbar {
+    display: none;
+}
+
+.cdo-layout-slider .cdo-card {
+    min-width: 200px;
+    width: 200px;
+}
+
+@media (max-width: 768px) {
+    .cdo-layout-grid {
+        grid-template-columns: repeat(var(--cdo-mobile-columns, 2), 1fr);
+    }
+}
+
+/* Product Card */
+.cdo-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    min-width: 0;
+}
+
+.cdo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
+}
+
+.cdo-card.selected {
+    border: 2px solid var(--cdo-selection-color, #000);
+}
+
+.cdo-check-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--cdo-selection-color, #000);
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.cdo-card.selected .cdo-check-badge {
+    opacity: 1;
+}
+
+.cdo-card-img-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.cdo-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Hover Variants */
+.cdo-variant-popup {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 8px;
+    transform: translateY(100%);
+    transition: transform 0.2s ease;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 80px;
+    overflow-y: auto;
+}
+
+.cdo-card:hover .cdo-variant-popup {
+    transform: translateY(0);
+}
+
+.cdo-variant-swatch {
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.cdo-variant-swatch.active {
+    background: var(--cdo-selection-color, #000);
+    color: #fff;
+    border-color: var(--cdo-selection-color, #000);
+}
+
+/* Selection Popup Overlay */
+.cdo-selection-popup {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    padding: 12px;
+    animation: cdoSlideUp 0.3s ease;
+}
+
+.cdo-selection-popup.active {
+    display: flex;
+}
+
+@keyframes cdoSlideUp {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.cdo-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666;
+}
+
+.cdo-popup-close {
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    color: #333;
+}
+
+.cdo-popup-variants {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cdo-popup-variant-btn {
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    background: #f9f9f9;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cdo-popup-variant-btn:hover {
+    border-color: var(--cdo-selection-color, #000);
+}
+
+.cdo-popup-variant-btn.active {
+    background: var(--cdo-selection-color, #000);
+    color: white;
+    border-color: var(--cdo-selection-color, #000);
+}
+
+/* Sticky Bar */
+.cdo-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--cdo-sticky-bg, #fff);
+    padding: var(--cdo-sticky-pad-v, 12px) var(--cdo-sticky-pad-h, 20px);
+    border-top: 1px solid var(--cdo-sticky-border, #eee);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.cdo-preview-bar-inner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 15px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.cdo-preview-bar-shapes {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 10px;
+}
+
+.cdo-preview-bar-shapes::-webkit-scrollbar {
+    display: none;
+}
+
+.cdo-preview-bar-shape-empty {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    background: #fff;
+    overflow: hidden;
+}
+
+.cdo-preview-bar-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+}
+
+.cdo-preview-bar-prices {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.cdo-preview-bar-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+#cdo-preview-bar {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+#cdo-preview-bar #cdo-slots {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#cdo-preview-bar button,
+.cdo-add-btn,
+.cdo-qty-btn {
+    min-height: 40px;
+    touch-action: manipulation;
+}
+
+.cdo-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    flex-wrap: nowrap;
+}
+
+.cdo-qty-wrap {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 1024px) {
+    .cdo-layout-grid {
+        grid-template-columns: repeat(var(--cdo-tablet-columns, 2), minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .cdo-preview-bar-inner {
+        gap: 12px;
+    }
+
+    .cdo-preview-bar-shape-empty {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+.cdo-checkout-btn {
+    background: var(--cdo-checkout-btn-bg, #000);
+    color: var(--cdo-checkout-btn-text, #fff);
+    border: none;
+    padding: 10px 24px;
+    border-radius: var(--cdo-checkout-btn-radius, 6px);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+    display: flex;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .cdo-sticky-bar {
+        padding: 12px;
+    }
+
+    .cdo-preview-bar-inner {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 15px !important;
+    }
+
+    .cdo-preview-bar-shapes {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    .cdo-preview-bar-shape-empty {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 18px !important;
+    }
+
+    .cdo-preview-bar-info {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        gap: 10px !important;
+    }
+
+    .cdo-preview-bar-prices {
+        align-items: center !important;
+        margin-bottom: 5px !important;
+    }
+
+    .cdo-preview-bar-buttons {
+        width: 100% !important;
+        justify-content: stretch !important;
+        gap: 8px !important;
+    }
+
+    .cdo-checkout-btn {
+        flex: 1 1 calc(50% - 4px) !important;
+        height: auto !important;
+        min-height: 48px !important;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        justify-content: center !important;
+        width: auto !important;
+    }
+
+    .cdo-card {
+        padding: 10px;
+    }
+
+    .cdo-card-actions {
+        flex-wrap: wrap;
+    }
+
+    .cdo-qty-wrap,
+    .cdo-add-btn {
+        width: 100%;
+    }
+
+    .cdo-add-btn {
+        margin-left: 0;
+        min-height: 42px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .cdo-preview-bar-shape-empty {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 16px !important;
+    }
+
+    .cdo-progress-container {
+        padding: 12px;
+    }
+}
+
+.cdo-qty-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cdo-qty-value {
+    width: 44px;
+    height: 40px;
+    border: 1px solid #ddd;
+    border-left: none;
+    border-right: none;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cdo-add-btn {
+    background: var(--cdo-add-btn-bg, #000);
+    color: var(--cdo-add-btn-text, #fff);
+    border: none;
+    padding: 4px 12px;
+    width: var(--cdo-add-btn-width, 100%);
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: background 0.2s;
+}
+
+.cdo-card.selected .cdo-add-btn {
+    background: #ff4d4d;
+    color: white;
+}
+
+/* Progress Main Overrides */
+.cdo-progress-fill-layer-main {
+    height: 14px !important;
+    border-radius: 20px !important;
+    background-image: repeating-linear-gradient(110deg, var(--cdo-bar-color) 0px, var(--cdo-bar-color) 18px, transparent 18px, transparent 24px) !important;
+    transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.cdo-progress-border-main {
+    border: 3px solid var(--cdo-bar-color) !important;
+    padding: 3px !important;
+    border-radius: 40px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background-color: var(--cdo-bg-color) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Toast */
+.combo-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #323232;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    max-width: 90%;
+    text-align: center;
+}
+
+.combo-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}

@@ -1,0 +1,318 @@
+.cdo-spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #333; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.cdo-toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px); background: #111; color: #fff; padding: 14px 28px; border-radius: 50px; z-index: 10000; opacity: 0; transition: all 0.4s; pointer-events: none; }
+.cdo-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.cdo-qty-btn { width: 40px; height: 40px; border: 1px solid #e0e0e0; background: #fff; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.cdo-qty-value { width: 36px; height: 40px; text-align: center; border: 1px solid #e0e0e0; border-left: none; border-right: none; appearance: none; -webkit-appearance: none; background: #fff; font-size: 14px; }
+.cdo-card { position: relative; }
+.cdo-card.cdo-sold-out {
+  filter: grayscale(100%);
+  opacity: 0.72;
+}
+.cdo-card.cdo-sold-out .cdo-add-btn,
+.cdo-card.cdo-sold-out .cdo-qty-btn {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.cdo-soldout-pill {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 3;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.cdo-tick { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff; font-weight: 700; display: none; z-index: 2; }
+.cdo-tick.visible { display: flex; }
+/* Progress bar */
+#cdo-progress-track {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #e0e0e0;
+  height: 10px;
+  width: 100%;
+  box-shadow: inset 0 0 0 10px #e0e0e0;
+}
+#cdo-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.55s cubic-bezier(0.4,0,0.2,1), background-color 0.35s ease;
+  background: var(--cdo-progress-color, #1a6644);
+}
+#cdo-progress-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--cdo-progress-color, #1a6644);
+  border-radius: 10px;
+  transition: background-color 0.35s ease;
+}
+/* Timer (layout3) */
+.cdo-timer { display: flex; gap: 8px; justify-content: center; align-items: center; }
+.cdo-timer-unit { display: flex; flex-direction: column; align-items: center; }
+.cdo-timer-val { font-size: 28px; font-weight: 800; line-height: 1; }
+.cdo-timer-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+.cdo-timer-sep { font-size: 24px; font-weight: 800; padding-bottom: 6px; }
+/* Banner Slider (layout3 only) */
+.cdo-slider { position: relative; overflow: hidden; }
+.cdo-slider-track { display: flex; transition: transform 0.5s ease; }
+.cdo-slider-slide { flex-shrink: 0; width: 100%; }
+.cdo-slider-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+.cdo-slider-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; transition: background 0.3s; }
+.cdo-slider-dot.active { background: #fff; }
+
+/* Collection tabs (layout2) */
+.cdo-tabs-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding-bottom: 2px;
+}
+.cdo-tabs-wrap {
+  position: relative;
+}
+.cdo-tabs-wrap.cdo-tabs-mode-scroll .cdo-tabs-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+.cdo-tabs-wrap.cdo-tabs-mode-arrows .cdo-tabs-viewport,
+.cdo-tabs-wrap.cdo-tabs-mode-slide_touch .cdo-tabs-viewport {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cdo-tabs-wrap.cdo-tabs-mode-arrows .cdo-tabs-viewport::-webkit-scrollbar,
+.cdo-tabs-wrap.cdo-tabs-mode-slide_touch .cdo-tabs-viewport::-webkit-scrollbar {
+  display: none;
+}
+.cdo-tabs-wrap.cdo-tabs-mode-slide_touch .cdo-tabs-viewport {
+  touch-action: pan-x;
+}
+.cdo-tabs-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #d7d7d7;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+}
+.cdo-tabs-arrow.prev { left: 6px; }
+.cdo-tabs-arrow.next { right: 6px; }
+.cdo-tabs-arrow:hover {
+  background: #f7f7f7;
+}
+.cdo-tabs-viewport::-webkit-scrollbar {
+  height: 5px;
+}
+.cdo-tabs-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cdo-tabs-viewport::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+}
+.cdo-tab-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  min-width: 100%;
+  white-space: nowrap;
+  scroll-snap-type: x proximity;
+}
+.cdo-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  border: none;
+  outline: none;
+  line-height: 1.2;
+}
+.cdo-tab:focus-visible {
+  box-shadow: 0 0 0 3px rgba(0, 96, 223, 0.35);
+}
+
+.cdo-products-region {
+  position: relative;
+}
+.cdo-products-grid {
+  transition: opacity 0.18s ease;
+}
+.cdo-products-grid.is-loading {
+  opacity: 0.7;
+}
+.cdo-products-skeleton {
+  display: grid;
+  grid-template-columns: inherit;
+  gap: inherit;
+  width: 100%;
+}
+.cdo-skeleton-card {
+  border-radius: 12px;
+  border: 1px solid #ececec;
+  background: #fff;
+  padding: 10px;
+  overflow: hidden;
+}
+.cdo-skeleton-img,
+.cdo-skeleton-line {
+  background: linear-gradient(90deg, #f1f1f1 25%, #e7e7e7 37%, #f1f1f1 63%);
+  background-size: 400% 100%;
+  animation: cdo-skeleton-shimmer 1.2s ease infinite;
+}
+.cdo-skeleton-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.cdo-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.cdo-skeleton-line.short {
+  width: 45%;
+  margin-bottom: 0;
+}
+@keyframes cdo-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+/* Product Cards Slider */
+.cdo-layout-slider-container { position: relative; width: 100%; }
+.cdo-layout-slider {
+  display: flex !important;
+  gap: 16px;
+  overflow-x: auto !important;
+  padding-bottom: 15px !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+}
+.cdo-layout-slider::-webkit-scrollbar { display: none; }
+.cdo-layout-slider .cdo-card { 
+  min-width: clamp(170px, 42vw, 240px) !important; 
+  width: clamp(170px, 42vw, 240px) !important; 
+  flex-shrink: 0 !important; 
+  scroll-snap-align: start;
+}
+.cdo-card-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+.cdo-qty-wrap { display: inline-flex; align-items: center; }
+.cdo-add-btn { min-height: 40px; touch-action: manipulation; }
+.cdo-nav-btn {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%; background: #fff;
+  border: 1px solid #ddd; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  font-size: 18px; transition: all 0.2s;
+}
+.cdo-nav-btn:hover { background: #f8f8f8; box-shadow: 0 6px 15px rgba(0,0,0,0.15); }
+.cdo-nav-btn.prev { left: 10px; }
+.cdo-nav-btn.next { right: 10px; }
+@media (max-width: 1024px) {
+  .cdo-layout-slider .cdo-card {
+    min-width: clamp(165px, 52vw, 220px) !important;
+    width: clamp(165px, 52vw, 220px) !important;
+  }
+}
+@media (max-width: 768px) {
+  .cdo-nav-btn { display: none; }
+  .cdo-layout-slider .cdo-card {
+    min-width: clamp(160px, 68vw, 200px) !important;
+    width: clamp(160px, 68vw, 200px) !important;
+  }
+  .cdo-card-actions { flex-wrap: wrap; }
+  .cdo-qty-wrap,
+  .cdo-add-btn {
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .cdo-layout-slider .cdo-card {
+    min-width: 78vw !important;
+    width: 78vw !important;
+  }
+}
+.cdo-variant-hover-popup { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); padding: 8px; transform: translateY(100%); transition: transform 0.2s ease; z-index: 10; display: flex; flex-wrap: wrap; gap: 4px; max-height: 100px; overflow-y: auto; border-top: 1px solid #eee; }
+.cdo-card:hover .cdo-variant-hover-popup { transform: translateY(0); }
+.cdo-variant-swatch { font-size: 10px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; transition: all 0.2s; color: #333; font-weight: 600; }
+.cdo-variant-swatch:hover { border-color: #000; background: #f9f9f9; }
+.cdo-variant-swatch.active { background: #000; color: #fff; border-color: #000; }
+.cdo-img-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  aspect-ratio: var(--cdo-image-ratio, 1 / 1);
+}
+@supports not (aspect-ratio: 1 / 1) {
+  .cdo-img-wrapper {
+    height: 0;
+    padding-top: var(--cdo-image-ratio-fallback, 100%);
+  }
+  .cdo-img-wrapper > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+/* Preview bar slot/image alignment */
+#cdo-preview-bar #cdo-slots {
+  justify-content: flex-start;
+  align-items: center;
+}
+#cdo-preview-bar [id^="cdo-slot-"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#cdo-preview-bar .cdo-preview-image,
+#cdo-preview-bar .preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  border-radius: inherit;
+}
+
+@media (max-width: 1024px) {
+  #cdo-preview-bar #cdo-slots {
+    width: 100%;
+    justify-content: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  #cdo-preview-bar #cdo-slots {
+    gap: 8px;
+  }
+}

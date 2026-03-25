@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Read(//c/xampp/htdocs/make-a-combo/**)",
+      "Read(//c/xzmpp/htdocs/**)",
+      "Bash(mysql:*)",
+      "Bash(\"C:/xampp/mysql/bin/mysql.exe\":*)",
+      "Bash(powershell:*)"
+    ]
+  }
+}

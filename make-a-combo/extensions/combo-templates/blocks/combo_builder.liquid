@@ -1,0 +1,29 @@
+{{ 'combo-builder.css' | asset_url | stylesheet_tag }}
+
+{% schema %}
+{
+  "name": "Combo Builder (Dynamic)",
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_sold_out_products",
+      "label": "Show sold out products",
+      "default": false
+    }
+  ]
+}
+{% endschema %}
+
+<div id="combo-builder-root" data-show-sold-out-products='{{ block.settings.show_sold_out_products | json }}' style="display:none; min-height: 400px; position: relative; font-family: inherit;">
+  <div id="loading-combo" style="text-align: center; padding: 60px 20px;">
+    <div class="cdo-spinner"></div>
+    <p style="margin-top: 15px; color: #666; font-family: inherit;">Loading your combo builder...</p>
+  </div>
+</div>
+<div class="summa"></div>
+
+<script src="{{ 'combo-utils.js' | asset_url }}" defer></script>
+<script src="{{ 'combo-components.js' | asset_url }}" defer></script>
+<script src="{{ 'combo-layouts.js' | asset_url }}" defer></script>
+<script src="{{ 'combo-core.js' | asset_url }}" defer></script>
