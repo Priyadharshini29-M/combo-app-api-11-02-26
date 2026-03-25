@@ -142,7 +142,7 @@ function bindLayout1Logic(cfg, products) {
       if (card.dataset.soldout === '1') { showToast('This product is sold out.'); return; }
       if (getTotalQty() >= maxTotal) { showToast(limitMsg); return; }
       if (stepLimit && getStepQty(step) >= stepLimit) { showToast(`Max ${stepLimit} item(s) from this category.`); return; }
-      const displayMode = cfg.product_card_variants_display || 'popup';
+      const displayMode = cfg.product_card_variants_display || 'static';
       if (overrideVariant) {
         let key = String(overrideVariant.id || '').trim(); const vPrice = toSafeNumber(overrideVariant.price, price); const vImage = toSafeImage(overrideVariant.image) || image;
         if (!/^\d+$/.test(key)) { const fallbackVariant = product && (product.variants || []).length > 0 ? normalizeVariantId(product.variants[0].id) : ''; key = fallbackVariant; }
@@ -151,9 +151,21 @@ function bindLayout1Logic(cfg, products) {
         updateCardVisuals(card, id); return;
       }
       if (displayMode === 'popup' && product && (product.variants || []).length > 1) { if (document.getElementById('cdo-variant-overlay')) { openVariantPopup(card, product); return; } }
-      let variantId = id; let variantPrice = price; let variantImage = image; const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-      if (activeSwatch && activeSwatch.dataset.variantId) { variantId = String(activeSwatch.dataset.variantId).trim(); variantPrice = toSafeNumber(activeSwatch.dataset.price, price); variantImage = activeSwatch.dataset.image || image; }
-      else if (product && (product.variants || []).length > 0) { const firstVariant = product.variants[0]; variantId = normalizeVariantId(firstVariant.id) || variantId; variantPrice = toSafeNumber(firstVariant.price, price); variantImage = toSafeImage(firstVariant.image) || image; }
+      let variantId = id; let variantPrice = price; let variantImage = image; 
+      const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
+      const staticSelect = card.querySelector('.cdo-variant-static-select');
+      if (staticSelect) {
+        if (!staticSelect.value) { showToast('Please select a valid variant.'); return; }
+        variantId = staticSelect.value;
+        const selOpt = staticSelect.options[staticSelect.selectedIndex];
+        variantPrice = toSafeNumber(selOpt.dataset.price, price);
+        variantImage = toSafeImage(selOpt.dataset.image) || image;
+      } else if (activeSwatch && activeSwatch.dataset.variantId) { 
+        variantId = String(activeSwatch.dataset.variantId).trim(); variantPrice = toSafeNumber(activeSwatch.dataset.price, price); variantImage = toSafeImage(activeSwatch.dataset.image) || image; 
+      } else if (product && (product.variants || []).length > 0) { 
+        const firstVariant = product.variants.find(v => v.available !== false && (typeof v.inventory_quantity === 'undefined' || parseInt(v.inventory_quantity, 10) > 0)) || product.variants[0]; 
+        variantId = normalizeVariantId(firstVariant.id) || variantId; variantPrice = toSafeNumber(firstVariant.price, price); variantImage = toSafeImage(firstVariant.image) || image; 
+      }
       if (!/^\d+$/.test(String(variantId || '').trim())) { showToast('Please select a valid variant.'); return; }
       if (!selected[variantId]) selected[variantId] = { id: variantId, price: variantPrice, image: variantImage, qty: 1, step, cardId: id }; else selected[variantId].qty++;
       updateCardVisuals(card, id);
@@ -162,14 +174,28 @@ function bindLayout1Logic(cfg, products) {
     const incBtn = card.querySelector('.increment-btn'); const decBtn = card.querySelector('.decrement-btn'); const addBtn = card.querySelector('.cdo-add-btn');
     if (incBtn) incBtn.addEventListener('click', onInc); if (decBtn) decBtn.addEventListener('click', onDec); if (addBtn) addBtn.addEventListener('click', onInc);
     card.querySelectorAll('.cdo-variant-swatch').forEach(swatch => {
-      swatch.addEventListener('click', (e) => { e.stopPropagation(); const vId = swatch.dataset.variantId; const vPrice = toSafeNumber(swatch.dataset.price, price); const vImg = toSafeImage(swatch.dataset.image) || image; card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active')); swatch.classList.add('active'); const mainImg = card.querySelector('img'); if (mainImg) mainImg.src = vImg; const priceDiv = card.querySelector('.cdo-card-price'); if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100); onInc({ id: vId, price: vPrice, image: vImg }); });
+      swatch.addEventListener('click', (e) => { 
+        e.stopPropagation(); const vId = swatch.dataset.variantId; const vPrice = toSafeNumber(swatch.dataset.price, price); const vImg = toSafeImage(swatch.dataset.image) || image; 
+        card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active')); swatch.classList.add('active'); 
+        const mainImg = card.querySelector('img'); if (mainImg) mainImg.src = vImg; 
+        const priceDiv = card.querySelector('.cdo-card-price'); if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100); 
+        const addBtn = card.querySelector('.cdo-add-btn');
+        if (addBtn && card.dataset.soldout !== '1') {
+          if (!swatch.classList.contains('cdo-variant-soldout')) {
+            addBtn.disabled = false; addBtn.style.opacity = '1'; addBtn.style.cursor = 'pointer';
+          } else {
+            addBtn.disabled = true; addBtn.style.opacity = '0.7'; addBtn.style.cursor = 'not-allowed';
+          }
+        }
+        onInc({ id: vId, price: vPrice, image: vImg }); 
+      });
     });
   });
   const resetBtn = document.getElementById('cdo-reset-btn'); const checkoutBtn = document.getElementById('cdo-checkout-btn'); const previewATC = document.getElementById('cdo-preview-atc-btn');
   if (resetBtn) resetBtn.addEventListener('click', () => { Object.keys(selected).forEach(k => delete selected[k]); document.querySelectorAll('.cdo-card').forEach(c => { const qty = 0; const qtyEl = c.querySelector('.cdo-qty-value'); if (qtyEl) qtyEl.value = 0; c.style.border = `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; const addBtn = c.querySelector('.cdo-add-btn'); if (addBtn) addBtn.textContent = cfg.add_btn_text || cfg.product_add_btn_text || 'Add'; const tick = c.querySelector('.cdo-tick'); if (tick) tick.classList.remove('visible'); }); updateTotals(); });
   if (checkoutBtn) checkoutBtn.addEventListener('click', async () => {
     const items = buildValidLineItems(); if (!items.length) { showToast('Please add at least one valid product.'); return; }
-    try { const shopDomain = (window.Shopify && window.Shopify.shop) ? window.Shopify.shop : window.location.hostname; const resp = await fetch('/api/validate-inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, shop: shopDomain }) }); const result = await resp.json(); if (!result.ok) { if (result.unavailable && result.unavailable.length > 0) { showToast('One or more items are out of stock. Please update your combo.'); } else { showToast('Could not verify inventory. Please try again.'); } return; } } catch (err) { showToast('Could not verify inventory. Please try again.'); return; }
+
     try { var templateName = (typeof template !== 'undefined' && template.name) ? template.name : (window.comboTemplateName || ''); var templateId = (typeof template !== 'undefined' && template.id) ? template.id : (window.comboTemplateId || ''); var templateUrl = (typeof template !== 'undefined' && template.url) ? template.url : window.location.href; var pageUrl = window.location.href; var shopDomain = (window.Shopify && window.Shopify.shop) ? window.Shopify.shop : window.location.hostname; var visitorId = sessionStorage.getItem('cdo_uid') || ''; if (!visitorId) { visitorId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('cdo_uid', visitorId); } var trackingData = { template_name: templateName, template_id: templateId, template_url: templateUrl, page_url: pageUrl, shop_domain: shopDomain, visitor_id: visitorId }; var url = 'https://darkblue-dotterel-303283.hostingersite.com/clicks.php'; var payload = JSON.stringify(trackingData); if (navigator.sendBeacon) { var blob = new Blob([payload], { type: 'application/json' }); navigator.sendBeacon(url, blob); } else { fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function(){}); } } catch (e) { }
     const checkoutItems = items.map(item => `${item.id}:${item.quantity}`).join(','); window.location.assign(rootUrl + 'cart/' + checkoutItems + '?checkout');
   });
@@ -188,7 +214,7 @@ async function fetchStorefrontProducts(collectionHandle, signal) {
 
 function renderLayout2(cfg, products, root, template) {
   const visibleProducts = filterProductsByStock(products, cfg); const isMobile = window.innerWidth < 768; const padR = isMobile ? (cfg.container_padding_right_mobile||12) : (cfg.container_padding_right_desktop||24); const padL = isMobile ? (cfg.container_padding_left_mobile||12) : (cfg.container_padding_left_desktop||24); const padT = isMobile ? (cfg.container_padding_top_mobile||16) : (cfg.container_padding_top_desktop||24); const padB = isMobile ? (cfg.container_padding_bottom_mobile||80): (cfg.container_padding_bottom_desktop||80); const tabsW = cfg.tabs_width || 100; const tabNavigationMode = cfg.tab_navigation_mode || 'scroll'; const showTabArrows = tabNavigationMode === 'arrows'; const tabMarginTop = Number.isFinite(parseFloat(cfg.tab_margin_top)) ? parseFloat(cfg.tab_margin_top) : 0; const tabMarginBottom = Number.isFinite(parseFloat(cfg.tab_margin_bottom)) ? parseFloat(cfg.tab_margin_bottom) : 24;
-  const tabCount = parseInt(cfg.tab_count) || 3; const tabs = []; for (let i = 1; i <= tabCount; i++) { if (cfg[`col_${i}`]) { const handle = cfg[`col_${i}`]; const label = cfg[`col_${i}_label`] || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); tabs.push({ handle, label }); } } if (cfg.show_tab_all === true && tabs.length > 0) tabs.unshift({ handle: 'all', label: cfg.tab_all_label || 'All' }); if (!tabs.length) tabs.push({ handle: 'all', label: cfg.tab_all_label || 'All' });
+  const tabs = []; for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) { const handle = cfg[`col_${i}`]; const label = cfg[`col_${i}_label`] || handle.replace(/-/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase()); tabs.push({ handle, label }); } } if (cfg.show_tab_all === true && tabs.length > 0) tabs.unshift({ handle: 'all', label: cfg.tab_all_label || 'All' }); if (!tabs.length) tabs.push({ handle: 'all', label: cfg.tab_all_label || 'All' });
   const initialHandle = tabs[0].handle; const tabRadius = cfg.tab_border_radius || 30;
   const tabsHtml = tabs.map((tab, i) => `<button type="button" class="cdo-tab" data-handle="${tab.handle}" id="cdo-tab-${tab.handle}" role="tab" aria-controls="cdo-products-panel" aria-selected="${i === 0 ? 'true' : 'false'}" tabindex="${i === 0 ? '0' : '-1'}" style="padding:${cfg.tab_padding_vertical||10}px ${cfg.tab_padding_horizontal||20}px;cursor:pointer;border-radius:${tabRadius}px;font-weight:600;font-size:${cfg.tab_font_size||14}px;transition:all 0.2s;user-select:none;background:${i===0?(cfg.tab_active_bg_color||'#000'):(cfg.tab_bg_color||'#eee')};color:${i===0?(cfg.tab_active_text_color||'#fff'):(cfg.tab_text_color||'#333')};">${tab.label}</button>`).join('');
   const cols = isMobile ? (cfg.mobile_columns||2) : (cfg.desktop_columns||3); const gap = cfg.products_gap || 20; const gridW = cfg.grid_width || 100;
@@ -217,7 +243,7 @@ function renderLayout2(cfg, products, root, template) {
 /* ===================== LAYOUT 3 — FMCG / Instamart ===================== */
 function renderLayout3(cfg, products, root, template) {
   const visibleProducts = filterProductsByStock(products, cfg); const isMobile = window.innerWidth < 768; const primary = cfg.primary_color || '#000'; const padR = isMobile ? (cfg.container_padding_right_mobile||12) : (cfg.container_padding_right_desktop||24); const padL = isMobile ? (cfg.container_padding_left_mobile||12) : (cfg.container_padding_left_desktop||24); const padT = isMobile ? (cfg.container_padding_top_mobile||16) : (cfg.container_padding_top_desktop||24); const padB = isMobile ? (cfg.container_padding_bottom_mobile||80): (cfg.container_padding_bottom_desktop||80);
-  const cats = []; for (let i = 1; i <= 4; i++) { if (cfg[`col_${i}`]) cats.push({ handle: cfg[`col_${i}`], title: cfg[`title_${i}`] || `Category ${i}`, limit: parseInt(cfg[`col_${i}_limit`]) || null }); } if (!cats.length) cats.push({ handle: 'all', title: 'All', limit: null }); cats.unshift({ handle: 'all', title: cfg.page_title || 'All' });
+  const cats = []; for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) cats.push({ handle: cfg[`col_${i}`], title: cfg[`title_${i}`] || `Category ${i}`, limit: parseInt(cfg[`col_${i}_limit`]) || null }); } if (!cats.length) cats.push({ handle: 'all', title: 'All', limit: null }); cats.unshift({ handle: 'all', title: cfg.page_title || 'All' });
   const catPillsHtml = cats.map((c, i) => `<button class="cdo-cat-pill" data-handle="${c.handle}" style="padding:8px 20px;border-radius:30px;border:none;cursor:pointer;font-weight:700;font-size:14px;white-space:nowrap;transition:all 0.2s;background:${i===0 ? primary : '#eee'};color:${i===0 ? '#fff' : '#333'};">${c.title}</button>`).join('');
   const heroHtml = cfg.show_hero ? `<div style="background:#f9f9f9;border-radius:12px;padding:24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">${cfg.hero_image_url ? `<img src="${cfg.hero_image_url}" style="width:${isMobile?'100%':'240px'};border-radius:10px;object-fit:cover;max-height:180px;" loading="lazy">` : ''}<div style="flex:1;min-width:200px;"><h2 style="font-size:${isMobile?20:28}px;font-weight:800;margin:0 0 6px;color:${cfg.text_color||'#111'};">${cfg.hero_title||'Mega Bundle'}</h2><p style="color:#666;margin:0 0 12px;font-size:15px;">${cfg.hero_subtitle||''}</p><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><span style="font-size:26px;font-weight:800;color:${primary};">${cfg.hero_price||''}</span>${cfg.hero_compare_price ? `<span style="text-decoration:line-through;color:#999;font-size:16px;">${cfg.hero_compare_price}</span>` : ''}</div>${cfg.timer_hours !== undefined ? `<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-bottom:6px;">Deal ends in</div><div class="cdo-timer" style="justify-content:flex-start;"><div class="cdo-timer-unit"><span class="cdo-timer-val" id="t-h" style="color:${primary};">00</span><span class="cdo-timer-label">hrs</span></div><span class="cdo-timer-sep" style="color:${primary};">:</span><div class="cdo-timer-unit"><span class="cdo-timer-val" id="t-m" style="color:${primary};">00</span><span class="cdo-timer-label">min</span></div><span class="cdo-timer-sep" style="color:${primary};">:</span><div class="cdo-timer-unit"><span class="cdo-timer-val" id="t-s" style="color:${primary};">00</span><span class="cdo-timer-label">sec</span></div></div></div>` : ''}</div></div>` : '';
   const cols = isMobile ? (cfg.mobile_columns||2) : (cfg.desktop_columns||3); const gap = cfg.products_gap || 16;

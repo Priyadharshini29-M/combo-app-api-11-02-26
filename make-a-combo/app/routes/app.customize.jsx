@@ -2256,6 +2256,9 @@ export default function Customize() {
                           allStepProducts={allStepProducts}
                           setAllStepProducts={setAllStepProducts}
                         />
+                        {config.custom_css && (
+                          <style dangerouslySetInnerHTML={{ __html: `.preview-viewport { ${config.custom_css} }` }} />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2276,6 +2279,9 @@ export default function Customize() {
                       allStepProducts={allStepProducts}
                       setAllStepProducts={setAllStepProducts}
                     />
+                    {config.custom_css && (
+                      <style dangerouslySetInnerHTML={{ __html: `.preview-viewport { ${config.custom_css} }` }} />
+                    )}
                   </div>
                 )}
               </div>
@@ -5381,6 +5387,33 @@ export default function Customize() {
                         />
                       </>
                     )}
+                  </FormLayout>
+                </CollapsibleCard>
+
+                {/* Custom CSS Section */}
+                <CollapsibleCard
+                  title="Custom CSS"
+                  expanded={expandedSections.customCss}
+                  onToggle={() => toggleSection('customCss')}
+                >
+                  <FormLayout>
+                    <div style={{ marginBottom: '12px', marginTop: '12px' }}>
+                      <Text variant="headingSm" as="h6">
+                        Custom CSS
+                      </Text>
+                      <p style={{ fontSize: '13px', color: '#6d7175', marginBottom: '8px', marginTop: '4px' }}>
+                        Add your own CSS to further customize the design. These styles will be applied to the storefront.
+                      </p>
+                      <TextField
+                        multiline={10}
+                        value={config.custom_css || ''}
+                        onChange={(v) => updateConfig('custom_css', v)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder="/* Enter your custom CSS here */&#10;#combo-builder-root .cdo-card {&#10;  /* Your styles */&#10;}"
+                        monospaced
+                      />
+                    </div>
                   </FormLayout>
                 </CollapsibleCard>
               </>

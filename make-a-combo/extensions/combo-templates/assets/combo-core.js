@@ -59,7 +59,7 @@ function bindStandardLogic({ cfg, products }) {
     const onInc = (overrideVariant) => {
       if (card.dataset.soldout === '1') { showToast('This product is sold out.'); return; }
       const total = Object.values(selected).reduce((s,i) => s+i.qty, 0); if (total >= maxSel) { showToast(limitMsg); return; }
-      const displayMode = cfg.product_card_variants_display || 'popup';
+      const displayMode = cfg.product_card_variants_display || 'static';
       if (overrideVariant) {
         let key = String(overrideVariant.id || '').trim(); const vPrice = toSafeNumber(overrideVariant.price, price); const vImage = toSafeImage(overrideVariant.image) || image;
         if (!/^\d+$/.test(key)) { const fallbackVariant = product && (product.variants || []).length > 0 ? normalizeVariantId(product.variants[0].id) : ''; key = fallbackVariant; }
@@ -68,9 +68,21 @@ function bindStandardLogic({ cfg, products }) {
         updateCard(); return;
       }
       if (displayMode === 'popup' && product && (product.variants || []).length > 1) { if (document.getElementById('cdo-variant-overlay')) { openVariantPopup(card, product); return; } }
-      let variantId = id; let variantPrice = price; let variantImage = image; const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-      if (activeSwatch && activeSwatch.dataset.variantId) { variantId = String(activeSwatch.dataset.variantId).trim(); variantPrice = toSafeNumber(activeSwatch.dataset.price, price); variantImage = toSafeImage(activeSwatch.dataset.image) || image; }
-      else if (product && (product.variants || []).length > 0) { const firstVariant = product.variants[0]; variantId = normalizeVariantId(firstVariant.id) || variantId; variantPrice = toSafeNumber(firstVariant.price, price); variantImage = toSafeImage(firstVariant.image) || image; }
+      let variantId = id; let variantPrice = price; let variantImage = image; 
+      const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
+      const staticSelect = card.querySelector('.cdo-variant-static-select');
+      if (staticSelect) {
+        if (!staticSelect.value) { showToast('Please select a valid variant.'); return; }
+        variantId = staticSelect.value;
+        const selOpt = staticSelect.options[staticSelect.selectedIndex];
+        variantPrice = toSafeNumber(selOpt.dataset.price, price);
+        variantImage = toSafeImage(selOpt.dataset.image) || image;
+      } else if (activeSwatch && activeSwatch.dataset.variantId) { 
+        variantId = String(activeSwatch.dataset.variantId).trim(); variantPrice = toSafeNumber(activeSwatch.dataset.price, price); variantImage = toSafeImage(activeSwatch.dataset.image) || image; 
+      } else if (product && (product.variants || []).length > 0) { 
+        const firstVariant = product.variants.find(v => v.available !== false && (typeof v.inventory_quantity === 'undefined' || parseInt(v.inventory_quantity, 10) > 0)) || product.variants[0]; 
+        variantId = normalizeVariantId(firstVariant.id) || variantId; variantPrice = toSafeNumber(firstVariant.price, price); variantImage = toSafeImage(firstVariant.image) || image; 
+      }
       if (!/^\d+$/.test(String(variantId || '').trim())) { showToast('Please select a valid variant.'); return; }
       if (!selected[variantId]) selected[variantId] = { id: variantId, price: variantPrice, image: variantImage, qty: 1, cardId: id }; else selected[variantId].qty++;
       updateCard();
@@ -79,7 +91,21 @@ function bindStandardLogic({ cfg, products }) {
     const incBtn = card.querySelector('.increment-btn'); const decBtn = card.querySelector('.decrement-btn'); const addBtn = card.querySelector('.cdo-add-btn');
     if (incBtn) incBtn.addEventListener('click', onInc); if (decBtn) decBtn.addEventListener('click', onDec); if (addBtn) addBtn.addEventListener('click', onInc);
     card.querySelectorAll('.cdo-variant-swatch').forEach(swatch => {
-      swatch.addEventListener('click', (e) => { e.stopPropagation(); const vId = swatch.dataset.variantId; const vPrice = toSafeNumber(swatch.dataset.price, price); const vImg = toSafeImage(swatch.dataset.image) || image; card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active')); swatch.classList.add('active'); const mainImg = card.querySelector('img'); if (mainImg) mainImg.src = vImg; const priceDiv = card.querySelector('.cdo-card-price'); if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100); onInc({ id: vId, price: vPrice, image: vImg }); });
+      swatch.addEventListener('click', (e) => { 
+        e.stopPropagation(); const vId = swatch.dataset.variantId; const vPrice = toSafeNumber(swatch.dataset.price, price); const vImg = toSafeImage(swatch.dataset.image) || image; 
+        card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active')); swatch.classList.add('active'); 
+        const mainImg = card.querySelector('img'); if (mainImg) mainImg.src = vImg; 
+        const priceDiv = card.querySelector('.cdo-card-price'); if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100); 
+        const addBtn = card.querySelector('.cdo-add-btn');
+        if (addBtn && card.dataset.soldout !== '1') {
+          if (!swatch.classList.contains('cdo-variant-soldout')) {
+            addBtn.disabled = false; addBtn.style.opacity = '1'; addBtn.style.cursor = 'pointer';
+          } else {
+            addBtn.disabled = true; addBtn.style.opacity = '0.7'; addBtn.style.cursor = 'not-allowed';
+          }
+        }
+        onInc({ id: vId, price: vPrice, image: vImg }); 
+      });
     });
   });
   const resetBtn = document.getElementById('cdo-reset-btn'); const checkoutBtn = document.getElementById('cdo-checkout-btn'); const previewATC = document.getElementById('cdo-preview-atc-btn');
@@ -102,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   let slug = '';
   const pathMatch = window.location.pathname.match(/\/pages\/([^/?#]+)/);
   if (pathMatch && pathMatch[1]) slug = pathMatch[1];
-  if (!slug) { root.style.display = 'block'; root.innerHTML = '<div style="color:red;text-align:center;padding:40px;">Combo page not found.</div>'; return; }
+  if (!slug) { return; }
 
   try {
     const isPreview = new URLSearchParams(window.location.search).has('preview');
@@ -119,10 +145,10 @@ document.addEventListener('DOMContentLoaded', async function() {
       let products = [];
       try {
         const collectionHandles = new Set();
-        if (layout === 'layout1') { const numSteps = parseInt(cfg.max_selections || 3); for (let i = 1; i <= numSteps; i++) { if (cfg[`step_${i}_collection`]) { collectionHandles.add(cfg[`step_${i}_collection`]); } } }
-        else if (layout === 'layout2') { const tabCount = parseInt(cfg.tab_count || 4); for (let i = 1; i <= tabCount; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
-        else if (layout === 'layout3') { for (let i = 1; i <= 4; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
-        else { if (cfg.collection_handle) collectionHandles.add(cfg.collection_handle); }
+        if (layout === 'layout1') { for (let i = 1; i <= 10; i++) { if (cfg[`step_${i}_collection`]) collectionHandles.add(cfg[`step_${i}_collection`]); } }
+        else if (layout === 'layout2') { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
+        else if (layout === 'layout3') { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
+        else { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } if (cfg.collection_handle) collectionHandles.add(cfg.collection_handle); }
         const fetchPromises = [...collectionHandles].map(handle => fetch(`/collections/${handle}/products.json?limit=50`).then(r => r.json()).then(data => (data.products || []).map(p => ({ id: `gid://shopify/Product/${p.id}`, title: p.title, handle: p.handle, price: p.variants?.[0]?.price || '0.00', image: p.images?.[0]?.src || '', available: p.available, inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0), collection_handle: handle, step: [...collectionHandles].indexOf(handle) + 1, step_limit: cfg[`step_${[...collectionHandles].indexOf(handle) + 1}_limit`] || null, variants: (p.variants || []).map(v => ({ id: `gid://shopify/ProductVariant/${v.id}`, title: v.title, price: v.price, available: v.available, inventory_quantity: v.inventory_quantity, image: v.featured_image?.src || null })) }))));
         const results = await Promise.all(fetchPromises); products = results.flat();
       } catch(fetchErr) { console.error('[Combo] Failed to fetch fresh products:', fetchErr); root.style.display = 'block'; root.innerHTML = '<div style="color:red;text-align:center;padding:40px;">Failed to load live products. Please refresh or contact support.</div>'; return; }
@@ -132,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       root.style.display = 'block';
       if (isPreview && !template.active) { const banner = document.createElement('div'); banner.style.cssText = 'position:fixed;top:0;left:0;width:100%;z-index:99999;background:#ff6b00;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;'; banner.innerHTML = '🔒 Preview Mode — This combo is <strong>inactive</strong>. <a href="' + window.location.href.split('?')[0] + '" style="color:#fff;text-decoration:underline;margin-left:8px;">Exit Preview</a>'; document.body.prepend(banner); document.body.style.paddingTop = '44px'; }
       if (layout === 'layout1') renderLayout1(cfg, products, root); else if (layout === 'layout2') renderLayout2(cfg, products, root, template); else if (layout === 'layout3') renderLayout3(cfg, products, root, template); else renderLayoutGrid(cfg, products, root);
+      if (cfg.custom_css) { const styleEl = document.createElement('style'); styleEl.innerHTML = `#combo-builder-root {\n${cfg.custom_css}\n}`; root.appendChild(styleEl); }
     }
   } catch (err) { console.error('[Combo Builder] Failed to load:', err); if (root) { root.style.display = 'block'; root.innerHTML = '<div style="text-align:center;padding:40px;color:red;">Failed to load combo builder.</div>'; } }
 });

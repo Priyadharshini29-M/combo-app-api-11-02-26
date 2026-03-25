@@ -21,27 +21,22 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (imgEl && selectedOption.getAttribute('data-image')) {
         imgEl.src = selectedOption.getAttribute('data-image');
       }
-    }
-  });
-
-  document.body.addEventListener('click', function(e) {
-    if (e.target.classList.contains('cdo-add-btn')) {
-      const card = e.target.closest('.cdo-card');
-      if (!card) return;
-      const select = card.querySelector('.cdo-variant-static-select');
-      if (select && select.options.length > 1) {
-        // Must select a variant
-        if (!card.dataset.selectedVariantId) {
-          showToast('Please select a variant first.');
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
+      
+      const addBtn = card.querySelector('.cdo-add-btn');
+      if (addBtn && (!card.dataset.soldout || card.dataset.soldout === '0')) {
+        if (!selectedOption.disabled && selectedOption.value) {
+          addBtn.disabled = false;
+          addBtn.style.opacity = '1';
+          addBtn.style.cursor = 'pointer';
+        } else {
+          addBtn.disabled = true;
+          addBtn.style.opacity = '0.7';
+          addBtn.style.cursor = 'not-allowed';
         }
-        // Optionally: set the card's data-id to the selected variant for downstream logic
-        card.setAttribute('data-id', card.dataset.selectedVariantId);
       }
     }
   });
+
 });
 
 /* ===================== UTILITIES ===================== */

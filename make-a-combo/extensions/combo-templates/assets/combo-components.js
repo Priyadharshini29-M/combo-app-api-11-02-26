@@ -23,7 +23,11 @@ function renderProductCard(cfg, product) {
   
   const variants = product.variants || [];
   const hasVariants = variants.length > 1;
-  const displayMode = cfg.product_card_variants_display || 'popup';
+  const displayMode = cfg.product_card_variants_display || 'static';
+  
+  let defaultVariant = null;
+  const initialPrice = product.price;
+  const initialImage = product.image || '';
   
   let allVariantsSoldOut = false;
   if (hasVariants) {
@@ -98,12 +102,12 @@ function renderProductCard(cfg, product) {
     ${soldOut ? '<div class="cdo-soldout-pill">Sold Out</div>' : ''}
     ${showTick ? '<div class="cdo-tick" style="white-space:nowrap;background:'+hlColor+';">✓</div>' : ''}
     <div class="cdo-img-wrapper" style="--cdo-image-ratio:${imgRatio.cssRatio};--cdo-image-ratio-fallback:${imgRatio.fallbackPadding};">
-      <img src="${product.image || ''}" alt="${product.title || ''}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">
+      <img src="${initialImage}" alt="${product.title || ''}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">
       ${displayMode === 'hover' ? variantsHtml : ''}
     </div>
     ${displayMode === 'static' ? variantsHtml : ''}
     <div style="font-size:${titleSize}px;font-weight:700;margin-bottom:4px;color:${cfg.text_color||'#111'};line-height:1.3;">${product.title || ''}</div>
-    <div style="font-weight:800;font-size:${priceSize}px;color:${cfg.primary_color||cfg.add_btn_bg||'#000'};margin-bottom:10px;" class="cdo-card-price">${formatMoney(product.price)}</div>
+    <div style="font-weight:800;font-size:${priceSize}px;color:${cfg.primary_color||cfg.add_btn_bg||'#000'};margin-bottom:10px;" class="cdo-card-price">${formatMoney(initialPrice)}</div>
     <div class="cdo-card-actions" style="margin-top:auto;display:flex;align-items:center;gap:6px;${showQty && isMobile ? 'flex-wrap:wrap;' : ''}">
       ${showQty ? `
       <div class="cdo-qty-wrap" style="display:flex;align-items:center;${isMobile ? 'width:100%;' : ''}">
@@ -112,8 +116,8 @@ function renderProductCard(cfg, product) {
         <button type="button" class="cdo-qty-btn increment-btn" style="border-radius:0 6px 6px 0;">+</button>
       </div>` : ''}
       <button type="button" class="cdo-add-btn"
-        style="flex:1;background:${addBtnBg};color:${addBtnColor};border:none;padding:${isMobile ? 10 : 8}px 12px;border-radius:${addBtnRadius}px;font-weight:${addBtnW};font-size:${addBtnSize}px;cursor:pointer;min-height:40px;${(soldOut || allVariantsSoldOut) ? 'opacity:0.7;cursor:not-allowed;' : ''}"
-        ${(soldOut || allVariantsSoldOut) ? 'disabled' : ''}>
+        style="flex:1;background:${addBtnBg};color:${addBtnColor};border:none;padding:${isMobile ? 10 : 8}px 12px;border-radius:${addBtnRadius}px;font-weight:${addBtnW};font-size:${addBtnSize}px;cursor:pointer;min-height:40px;${(soldOut || allVariantsSoldOut || (hasVariants && displayMode !== 'popup')) ? 'opacity:0.7;cursor:not-allowed;' : ''}"
+        ${(soldOut || allVariantsSoldOut || (hasVariants && displayMode !== 'popup')) ? 'disabled' : ''}>
         ${addBtnText}
       </button>
     </div>

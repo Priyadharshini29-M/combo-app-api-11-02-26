@@ -2,7 +2,7 @@
 
 client_id = "f5c2cbb3e511079397eeaa68d16259ae"
 name = "Make-a-combo"
-application_url = "https://8671-103-114-211-125.ngrok-free.app "
+application_url = "https://0350-103-114-211-125.ngrok-free.app"
 embedded = true
 
 [build]
@@ -25,12 +25,12 @@ scopes = "write_products,read_content,write_content,read_script_tags,write_scrip
 
 [auth]
 redirect_urls = [
-  "https://8671-103-114-211-125.ngrok-free.app /auth/callback",
-  "https://8671-103-114-211-125.ngrok-free.app /auth/shopify/callback",
-  "https://8671-103-114-211-125.ngrok-free.app /api/auth/callback"
+  "https://0350-103-114-211-125.ngrok-free.app/auth/callback",
+  "https://0350-103-114-211-125.ngrok-free.app/auth/shopify/callback",
+  "https://0350-103-114-211-125.ngrok-free.app/api/auth/callback"
 ]
 
 [app_proxy]
 url = "https://darkblue-dotterel-303283.hostingersite.com"
 subpath = "combo"
-prefix = "apps" 
+prefix = "apps"
