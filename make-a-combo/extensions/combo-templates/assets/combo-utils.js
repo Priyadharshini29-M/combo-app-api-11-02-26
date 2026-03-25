@@ -63,22 +63,7 @@ function showToast(msg) {
 /* ===================== VISITOR TRACKING ===================== */
 function trackVisit(templateName) {
   if (!templateName) return;
-  let userId = sessionStorage.getItem('cdo_uid');
-  if (!userId) {
-    userId = 'visitor-' + Math.random().toString(36).substr(2, 9);
-    sessionStorage.setItem('cdo_uid', userId);
-  }
-  const payload = {
-    template_name: templateName,
-    shop_domain: window.Shopify && window.Shopify.shop ? window.Shopify.shop : 'unknown.myshopify.com',
-    page_url: window.location.href,
-    visitor_id: userId
-  };
-  fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  fetch('/apps/combo/visitors.php?template_name=' + encodeURIComponent(templateName)).catch(function(){});
 }
 
 function isProductInStock(product) {
