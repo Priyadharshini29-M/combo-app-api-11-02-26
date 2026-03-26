@@ -4,8 +4,9 @@ import { json } from '@remix-run/node';
 import fs from 'fs';
 import path from 'path';
 import { authenticate } from '../shopify.server';
-import { BASE_PHP_URL, sendToPhp } from '../utils/api-helpers';
+import { getVisitors, getClicks, transformAnalytics, BASE_PHP_URL, sendToPhp, getAnalytics } from '../utils/api-helpers';
 import { EnableThemeButton } from '../components/EnableThemeButton';
+import { ShopifyAnalytics } from '../components/ShopifyAnalytics';
 
 import {
   Page,
@@ -155,7 +156,29 @@ export const loader = async ({ request }) => {
     console.error('Error reading blocks directory:', e);
   }
 
-  return json({ layoutFiles, shopName, isEnabled });
+  // 4. Fetch Real Analytics from visitors.php and clicks.php (with dynamic date support)
+  const url = new URL(request.url);
+  const startParam = url.searchParams.get('start');
+  const endParam = url.searchParams.get('end');
+
+  const end = endParam || new Date().toISOString().split('T')[0];
+  const start = startParam || new Date(new Date().setDate(new Date().getDate() - 30))
+    .toISOString()
+    .split('T')[0];
+
+  console.log(`[Dashboard] Fetching analytics for ${shop} (${start} to ${end})`);
+  
+  const analyticsData = (await getAnalytics(shop, start, end)) || {
+    totalVisitors: 0,
+    totalClicks: 0,
+    checkoutClicks: 0,
+    discountUsage: 0,
+    topTemplate: 'None',
+    byTemplate: [],
+    chartData: [],
+  };
+
+  return json({ layoutFiles, shopName, isEnabled, analyticsData });
 };
 
 // Layout designs metadata
@@ -224,7 +247,7 @@ const layoutMetadata = [
 
 // ... inside Dashboard component ...
 export default function Dashboard() {
-  const { shopName, isEnabled } = useLoaderData();
+  const { shopName, isEnabled, analyticsData } = useLoaderData();
   const [appStatus, setAppStatus] = useState(isEnabled);
 
   return (
@@ -378,6 +401,9 @@ export default function Dashboard() {
             </Link>
           </InlineStack>
         </Card>
+
+        {/* --- Shopify Analytics Extension Section --- */}
+        <ShopifyAnalytics initialData={analyticsData} />
       </BlockStack>
     </Page>
   );

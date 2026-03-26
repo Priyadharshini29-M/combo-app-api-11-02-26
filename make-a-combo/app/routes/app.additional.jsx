@@ -1,5 +1,5 @@
 import { Card, Page, Layout, Avatar, Icon } from '@shopify/polaris';
-import { ViewIcon } from '@shopify/polaris-icons';
+import { ProductIcon } from '@shopify/polaris-icons';
 
 const layoutFiles = [
   {
@@ -30,7 +30,7 @@ export default function AdditionalDashboard() {
       title="Layouts Preview"
       titleMetadata={
         <div style={{ width: 40 }}>
-          <Icon source={ViewIcon} tone="base" />
+          <Icon source={ProductIcon} tone="base" />
         </div>
       }
     >
