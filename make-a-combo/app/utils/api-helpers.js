@@ -267,15 +267,27 @@ export function transformAnalytics(visitors = [], clicks = []) {
 /**
  * Unified Analytics Fetcher (Uses analytics.php)
  */
-export async function getAnalytics(shop, start, end) {
-  let url = `${BASE_PHP_URL}/analytics.php?shop_domain=${shop}`;
-  if (start) url += `&start_date=${start}`;
-  if (end) url += `&end_date=${end}`;
+export async function getAnalytics(shop, start, end, dateRange) {
+  const url = new URL(`${BASE_PHP_URL}/analytics.php`);
+  url.searchParams.set('shop_domain', shop);
 
-  console.log(`[API] 📊 Fetching Unified Analytics: ${url}`);
+  // If explicit start/end are provided, always prefer them over date_range.
+  // This ensures timezone-safe datetime boundaries are respected.
+  if (start && end) {
+    // Allow both YYYY-MM-DD and YYYY-MM-DD HH:mm:ss formats.
+    // URLSearchParams will properly encode spaces/colons.
+    url.searchParams.set('start_date', start);
+    url.searchParams.set('end_date', end);
+  } else if (dateRange) {
+    url.searchParams.set('date_range', dateRange);
+  } else {
+    url.searchParams.set('date_range', 'last_30_days');
+  }
+
+  console.log(`[API] 📊 Fetching Unified Analytics: ${url.toString()}`);
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url.toString());
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     
     const rawResponse = await response.json();
@@ -322,9 +334,13 @@ export async function getAnalytics(shop, start, end) {
       };
     });
 
-    // Top template logic
+    // Top template logic:
+    // Prefer PHP's own ordering (`top_templates[0]`) so UI/API "top" matches the backend.
     let topTemplate = "None";
-    if (byTemplate.length > 0) {
+    if (phpData.top_templates && phpData.top_templates.length > 0) {
+      topTemplate = normalize(phpData.top_templates[0].template_name);
+    } else if (byTemplate.length > 0) {
+      // Fallback if PHP doesn't include top_templates.
       const sorted = [...byTemplate].sort((a, b) => {
         if (b.clicks === a.clicks) return b.visitors - a.visitors;
         return b.clicks - a.clicks;

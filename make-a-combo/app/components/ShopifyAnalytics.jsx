@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Card,
   Text,
@@ -47,11 +47,36 @@ export function ShopifyAnalytics({ initialData }) {
   const [data, setData] = useState(initialData || { totalVisitors: 0, totalClicks: 0, checkoutClicks: 0, discountUsage: 0, topTemplate: 'None', byTemplate: [], chartData: [] });
   const [isLoading, setIsLoading] = useState(false);
 
+  // Convert a Date object into YYYY-MM-DD in the browser's local timezone.
+  // IMPORTANT: Do NOT use toISOString() here, because it converts to UTC and
+  // can shift dates backwards (e.g. local 2026-03-26 becomes 2026-03-25).
+  const toYMDLocal = (d) => {
+    if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Normalize Date objects to local noon so day boundaries/timezones don't
+  // accidentally shift the YYYY-MM-DD we send to the API.
+  const normalizeToNoon = (d) => {
+    if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+    const nd = new Date(d);
+    nd.setHours(12, 0, 0, 0);
+    return nd;
+  };
+
   // Filter States
   const [datePopover, setDatePopover] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState('Last 30 days');
-  const [pendingDates, setPendingDates] = useState({ start: new Date(new Date().setDate(new Date().getDate() - 30)), end: new Date() });
+  const [pendingDates, setPendingDates] = useState({
+    start: normalizeToNoon(new Date(new Date().setDate(new Date().getDate() - 30))),
+    end: normalizeToNoon(new Date()),
+  });
   const [activeDates, setActiveDates] = useState(pendingDates);
+  const activeDatesRef = useRef(pendingDates);
+  const ignoreNextDatePickerOnChangeRef = useRef(false);
   const [{ month, year }, setDateView] = useState({ month: new Date().getMonth(), year: new Date().getFullYear() });
 
   // Handle Fetcher Updates
@@ -71,23 +96,49 @@ export function ShopifyAnalytics({ initialData }) {
   const handleRefresh = () => {
     setIsLoading(true);
     const params = new URLSearchParams();
-    params.set('start', activeDates.start.toISOString().split('T')[0]);
-    params.set('end', activeDates.end.toISOString().split('T')[0]);
+
+    // Always send explicit local-day boundaries to avoid timezone off-by-one issues.
+    // Format:
+    // - start = YYYY-MM-DD 00:00:00
+    // - end   = YYYY-MM-DD 23:59:59
+    // Use activeDates as the single source of truth.
+    // This avoids preset/state timing mismatches (e.g. "Today" still using
+    // a previous preset range, or a custom range collapsing).
+    const startDate = activeDatesRef.current?.start;
+    const endDate = activeDatesRef.current?.end;
+
+    const startYMD = toYMDLocal(startDate);
+    const endYMD = toYMDLocal(endDate);
+    if (startYMD) params.set('start', `${startYMD} 00:00:00`);
+    if (endYMD) params.set('end', `${endYMD} 23:59:59`);
+    
     fetcher.load(`/api/analytics?${params.toString()}`);
   };
 
   const handleApply = () => {
     setActiveDates(pendingDates);
+    activeDatesRef.current = pendingDates;
     setDatePopover(false);
     handleRefresh();
   };
 
   const setPreset = (preset, days) => {
+    // Polaris DatePicker often emits an onChange during internal state sync
+    // when we programmatically change `selected`. Ignore the next event so
+    // the preset range doesn't get overwritten.
+    ignoreNextDatePickerOnChangeRef.current = true;
     setSelectedPreset(preset);
     const start = new Date();
-    start.setDate(start.getDate() - days);
-    const range = { start, end: new Date() };
+    // `days` is inclusive (Last 7 days => today + 6 previous days).
+    // For Today (days=0), keep start == today.
+    const daysBack = days > 0 ? days - 1 : 0;
+    start.setDate(start.getDate() - daysBack);
+    const range = { start: normalizeToNoon(start), end: normalizeToNoon(new Date()) };
     setPendingDates(range);
+    // Keep `activeDates` in sync immediately so Refresh uses the latest selection,
+    // even if the user doesn't click "Apply".
+    setActiveDates(range);
+    activeDatesRef.current = range;
     setDateView({ month: start.getMonth(), year: start.getFullYear() });
   };
 
@@ -125,7 +176,28 @@ export function ShopifyAnalytics({ initialData }) {
                       <BlockStack gap="400">
                         <DatePicker
                           month={month} year={year}
-                          onChange={setPendingDates}
+                          onChange={(dates) => {
+                            if (ignoreNextDatePickerOnChangeRef.current) {
+                              ignoreNextDatePickerOnChangeRef.current = false;
+                              return;
+                            }
+                            const nextRange = {
+                              start: normalizeToNoon(dates?.start),
+                              end: normalizeToNoon(dates?.end),
+                            };
+                            setPendingDates(nextRange);
+                            // Polaris may emit partial ranges while selecting.
+                            // Keep previously-known start/end so a 22-26 selection
+                            // doesn't collapse into 26-26.
+                            const prev = activeDatesRef.current;
+                            const updated = {
+                              start: nextRange.start ?? prev?.start ?? null,
+                              end: nextRange.end ?? prev?.end ?? null,
+                            };
+                            activeDatesRef.current = updated;
+                            setActiveDates(updated);
+                            setSelectedPreset('Custom');
+                          }}
                           onMonthChange={(m, y) => setDateView({ month: m, year: y })}
                           selected={pendingDates}
                           multiMonth allowRange

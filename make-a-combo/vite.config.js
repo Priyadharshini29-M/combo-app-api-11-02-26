@@ -39,7 +39,12 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host, "409d-103-130-91-50.ngrok-free.app"],
+    allowedHosts: [
+      host,
+      "409d-103-130-91-50.ngrok-free.app",
+      // Whitelist current Shopify CLI ngrok hostname so Vite doesn't block it.
+      "829c-103-130-91-53.ngrok-free.app",
+    ],
     cors: {
       preflightContinue: true,
     },
