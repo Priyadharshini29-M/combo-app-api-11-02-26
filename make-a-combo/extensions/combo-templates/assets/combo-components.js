@@ -202,11 +202,11 @@ function getPreviewBarHtml(cfg) {
 /* ===================== BANNER HTML ===================== */
 function getBannerHtml(cfg) {
   if (cfg.show_banner === false) return '';
-  const desktopUrl = cfg.banner_image_url || '';
-  if (!desktopUrl) return '';
   const isMobile  = window.innerWidth < 768;
+  const desktopUrl = cfg.banner_image_url || '';
   const mobileUrl = cfg.banner_image_mobile_url || desktopUrl;
   const src  = isMobile ? mobileUrl : desktopUrl;
+  if (!src) return '';
   const fit  = cfg.banner_fit_mode === 'adapt' ? 'contain' : (cfg.banner_fit_mode || 'cover');
   const h    = cfg.banner_fit_mode === 'adapt' ? 'auto' : ((isMobile ? (cfg.banner_height_mobile || 120) : (cfg.banner_height_desktop || 180)) + 'px');
   const wPct = isMobile ? (cfg.banner_width_mobile || 100) : (cfg.banner_width_desktop || 100);
@@ -237,17 +237,23 @@ function initBannerSlider(cfg) {
 /* ===================== TITLE + DESCRIPTION HTML ===================== */
 function getTitleHtml(cfg) {
   if (cfg.show_title_description === false) return '';
+  const isMobile = window.innerWidth < 768;
   const w = cfg.title_width || 100;
+  const hSize = isMobile ? (cfg.heading_size_mobile || 22) : (cfg.heading_size || 28);
+  const dSize = isMobile ? (cfg.description_size_mobile || 13) : (cfg.description_size || 15);
+  const hAlign = isMobile ? (cfg.heading_align_mobile || cfg.heading_align || 'left') : (cfg.heading_align || 'left');
+  const dAlign = isMobile ? (cfg.description_align_mobile || cfg.description_align || 'left') : (cfg.description_align || 'left');
+
   const tpad = `${cfg.title_container_padding_top||0}px ${cfg.title_container_padding_right||0}px ${cfg.title_container_padding_bottom||0}px ${cfg.title_container_padding_left||0}px`;
   const tmar = `${cfg.title_container_margin_top||0}px ${cfg.title_container_margin_right||0}px ${cfg.title_container_margin_bottom||0}px ${cfg.title_container_margin_left||0}px`;
   const dpad = `${cfg.description_container_padding_top||0}px ${cfg.description_container_padding_right||0}px ${cfg.description_container_padding_bottom||0}px ${cfg.description_container_padding_left||0}px`;
   const dmar = `${cfg.description_container_margin_top||0}px ${cfg.description_container_margin_right||0}px ${cfg.description_container_margin_bottom||0}px ${cfg.description_container_margin_left||0}px`;
   return `
   <div style="width:${w}%;box-sizing:border-box;">
-    <div style="padding:${tpad};margin:${tmar};text-align:${cfg.heading_align || 'left'};">
-      <h1 style="font-size:${cfg.heading_size||28}px;font-weight:${cfg.heading_font_weight||700};color:${cfg.heading_color||'#333'};margin:0;">${cfg.collection_title||'Create Your Combo'}</h1>
+    <div style="padding:${tpad};margin:${tmar};text-align:${hAlign};">
+      <h1 style="font-size:${hSize}px;font-weight:${cfg.heading_font_weight||700};color:${cfg.heading_color||'#333'};margin:0;">${cfg.collection_title||'Create Your Combo'}</h1>
     </div>
-    ${cfg.collection_description ? `<div style="padding:${dpad};margin:${dmar};text-align:${cfg.description_align||'left'};"><p style="font-size:${cfg.description_size||15}px;font-weight:${cfg.description_font_weight||400};color:${cfg.description_color||'#666'};line-height:1.5;margin:0;">${cfg.collection_description}</p></div>` : ''}
+    ${cfg.collection_description ? `<div style="padding:${dpad};margin:${dmar};text-align:${dAlign};"><p style="font-size:${dSize}px;font-weight:${cfg.description_font_weight||400};color:${cfg.description_color||'#666'};line-height:1.5;margin:0;">${cfg.collection_description}</p></div>` : ''}
   </div>`;
 }
 

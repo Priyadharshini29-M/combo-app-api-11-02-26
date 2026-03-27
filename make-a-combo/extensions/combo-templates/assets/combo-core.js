@@ -145,14 +145,103 @@ document.addEventListener('DOMContentLoaded', async function() {
       let products = [];
       try {
         const collectionHandles = new Set();
-        if (layout === 'layout1') { for (let i = 1; i <= 10; i++) { if (cfg[`step_${i}_collection`]) collectionHandles.add(cfg[`step_${i}_collection`]); } }
-        else if (layout === 'layout2') { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
-        else if (layout === 'layout3') { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } }
-        else { for (let i = 1; i <= 10; i++) { if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]); } if (cfg.collection_handle) collectionHandles.add(cfg.collection_handle); }
-        const fetchPromises = [...collectionHandles].map(handle => fetch(`/collections/${handle}/products.json?limit=50`).then(r => r.json()).then(data => (data.products || []).map(p => ({ id: `gid://shopify/Product/${p.id}`, title: p.title, handle: p.handle, price: p.variants?.[0]?.price || '0.00', image: p.images?.[0]?.src || '', available: p.available, inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0), collection_handle: handle, step: [...collectionHandles].indexOf(handle) + 1, step_limit: cfg[`step_${[...collectionHandles].indexOf(handle) + 1}_limit`] || null, variants: (p.variants || []).map(v => ({ id: `gid://shopify/ProductVariant/${v.id}`, title: v.title, price: v.price, available: v.available, inventory_quantity: v.inventory_quantity, image: v.featured_image?.src || null })) }))));
-        const results = await Promise.all(fetchPromises); products = results.flat();
-      } catch(fetchErr) { console.error('[Combo] Failed to fetch fresh products:', fetchErr); root.style.display = 'block'; root.innerHTML = '<div style="color:red;text-align:center;padding:40px;">Failed to load live products. Please refresh or contact support.</div>'; return; }
-      products = filterProductsByStock(products, cfg); window.comboTemplateName = template.title || template.name || slug; window.comboTemplateId = String(template.id || template.external_id || ''); trackVisit(window.comboTemplateName);
+        // Exhaustive collection handle discovery
+        for (let i = 1; i <= 20; i++) {
+          if (cfg[`step_${i}_collection`]) collectionHandles.add(cfg[`step_${i}_collection`]);
+          if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]);
+        }
+        if (cfg.collection_handle) collectionHandles.add(cfg.collection_handle);
+
+        // Dynamic Fallback: If no collections are configured, try to fetch all collections from the store
+        if (collectionHandles.size === 0) {
+          try {
+            const allCollRes = await fetch('/collections.json');
+            if (allCollRes.ok) {
+              const allCollData = await allCollRes.json();
+              (allCollData.collections || []).slice(0, 5).forEach(c => collectionHandles.add(c.handle));
+            }
+          } catch (e) {
+            console.warn('[Combo] Failed to auto-fetch collections:', e);
+          }
+        }
+
+        const fetchPromises = [...collectionHandles].map(handle =>
+          fetch(`/collections/${handle}/products.json?limit=50`)
+            .then(r => r.ok ? r.json() : { products: [] })
+            .catch(() => ({ products: [] }))
+        );
+
+        const results = await Promise.all(fetchPromises);
+        const handleToProducts = new Map();
+        [...collectionHandles].forEach((handle, idx) => {
+          handleToProducts.set(handle, results[idx]?.products || []);
+        });
+
+        const allProducts = [];
+        if (layout === 'layout1') {
+          // Map products specifically to steps (Layout 1)
+          for (let i = 1; i <= 20; i++) {
+            const handle = cfg[`step_${i}_collection`];
+            if (handle && handleToProducts.has(handle)) {
+              const stepProds = handleToProducts.get(handle).map(p => ({
+                id: `gid://shopify/Product/${p.id}`,
+                title: p.title,
+                handle: p.handle,
+                price: p.variants?.[0]?.price || '0.00',
+                image: p.images?.[0]?.src || '',
+                available: p.available,
+                inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0),
+                collection_handle: handle,
+                step: i,
+                step_limit: cfg[`step_${i}_limit`] || null,
+                variants: (p.variants || []).map(v => ({
+                  id: `gid://shopify/ProductVariant/${v.id}`,
+                  title: v.title,
+                  price: v.price,
+                  available: v.available,
+                  inventory_quantity: v.inventory_quantity,
+                  image: v.featured_image?.src || null
+                }))
+              }));
+              allProducts.push(...stepProds);
+            }
+          }
+        } else {
+          // Normal flattening for Other Layouts
+          handleToProducts.forEach((prods, handle) => {
+            const mapped = prods.map(p => ({
+              id: `gid://shopify/Product/${p.id}`,
+              title: p.title,
+              handle: p.handle,
+              price: p.variants?.[0]?.price || '0.00',
+              image: p.images?.[0]?.src || '',
+              available: p.available,
+              inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0),
+              collection_handle: handle,
+              variants: (p.variants || []).map(v => ({
+                id: `gid://shopify/ProductVariant/${v.id}`,
+                title: v.title,
+                price: v.price,
+                available: v.available,
+                inventory_quantity: v.inventory_quantity,
+                image: v.featured_image?.src || null
+              }))
+            }));
+            allProducts.push(...mapped);
+          }
+          );
+        }
+        products = allProducts;
+      } catch (fetchErr) {
+        console.error('[Combo] Failed to fetch fresh products:', fetchErr);
+        root.style.display = 'block';
+        root.innerHTML = '<div style="color:red;text-align:center;padding:40px;">Failed to load live products. Please refresh or contact support.</div>';
+        return;
+      }
+      products = filterProductsByStock(products, cfg);
+      window.comboTemplateName = template.title || template.name || slug;
+      window.comboTemplateId = String(template.id || template.external_id || '');
+      trackVisit(window.comboTemplateName);
       const mainContent = document.querySelector('main') || document.querySelector('#MainContent') || document.querySelector('.main-content') || document.querySelector('[role="main"]');
       if (mainContent) { mainContent.innerHTML = ''; mainContent.appendChild(root); }
       root.style.display = 'block';

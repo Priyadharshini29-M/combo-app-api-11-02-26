@@ -951,14 +951,40 @@ const DEFAULT_COMBO_CONFIG = {
   // Progress bar defaults
   desktop_columns: '3', // 3 columns by default for desktop
   mobile_columns: '2', // 2 columns by default for mobile
-  container_padding_top_desktop: 24, // default container padding
-  container_padding_right_desktop: 24,
-  container_padding_bottom_desktop: 24,
-  container_padding_left_desktop: 24,
+  // Container Spacing
+  container_padding_top_desktop: 24,
   container_padding_top_mobile: 16,
+  container_padding_right_desktop: 24,
   container_padding_right_mobile: 12,
-  container_padding_bottom_mobile: 16,
+  container_padding_bottom_desktop: 80,
+  container_padding_bottom_mobile: 80,
+  container_padding_left_desktop: 24,
   container_padding_left_mobile: 12,
+
+  // Grid/Layout Spacing
+  products_gap: 16,
+  products_gap_mobile: 10,
+  grid_width: 100,
+
+  // Title Container Spacing
+  title_container_padding_top: 0,
+  title_container_padding_top_mobile: 0,
+  title_container_padding_bottom: 0,
+  title_container_padding_bottom_mobile: 0,
+  title_container_margin_top: 0,
+  title_container_margin_top_mobile: 0,
+  title_container_margin_bottom: 12,
+  title_container_margin_bottom_mobile: 8,
+
+  // Description Container Spacing
+  description_container_padding_top: 0,
+  description_container_padding_top_mobile: 0,
+  description_container_padding_bottom: 0,
+  description_container_padding_bottom_mobile: 0,
+  description_container_margin_top: 0,
+  description_container_margin_top_mobile: 0,
+  description_container_margin_bottom: 20,
+  description_container_margin_bottom_mobile: 16,
   show_banner: true, // show banner by default
   banner_image_url: '',
   banner_image_mobile_url: '',
@@ -1098,6 +1124,25 @@ const DEFAULT_COMBO_CONFIG = {
   timer_minutes: 45,
   timer_seconds: 12,
   banner_fit_mode: 'cover', // cover, contain, adapt
+  // Responsive Typography Overrides
+  heading_size_mobile: 22,
+  description_size_mobile: 13,
+  heading_align_mobile: 'left',
+  description_align_mobile: 'left',
+  product_title_size_desktop: 15,
+  product_title_size_mobile: 12,
+  product_price_size_desktop: 15,
+  product_price_size_mobile: 12,
+  // Responsive Spacing Overrides
+  products_gap_desktop: 16,
+  products_gap_mobile: 10,
+  tab_font_size_mobile: 12,
+  tab_padding_vertical_mobile: 8,
+  tab_padding_horizontal_mobile: 14,
+  tab_margin_top_mobile: 0,
+  tab_margin_bottom_mobile: 16,
+  add_btn_font_size_mobile: 12,
+  checkout_btn_font_size_mobile: 13,
   banner_full_width: false,
   // Banner Slider Settings
   enable_banner_slider: true,
@@ -1325,6 +1370,7 @@ export default function Customize() {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [activeCategory, setActiveCategory] = useState('layout'); // layout, style, advanced
+  const [styleDevice, setStyleDevice] = useState('desktop'); // desktop, mobile, linked
   const [activeTab, setActiveTab] = useState('all');
   const [allStepProducts, setAllStepProducts] = useState({});
   const fetchedHandlesRef = useRef(new Set());
@@ -1697,6 +1743,16 @@ export default function Customize() {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const getStyleKey = useCallback((baseKey) => {
+    if (styleDevice === 'mobile') {
+      const mobileKey = `${baseKey}_mobile`;
+      // We check if the mobile version is specifically defined in our config,
+      // though typically we'll just bind to it directly.
+      return mobileKey;
+    }
+    return baseKey;
+  }, [styleDevice]);
+
   const updateBoth = useCallback((keyA, keyB, value) => {
     setConfig((prev) => ({ ...prev, [keyA]: value, [keyB]: value }));
   }, []);
@@ -2046,8 +2102,8 @@ export default function Customize() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '24px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '32px',
             marginBottom: '40px',
           }}
         >
@@ -2055,28 +2111,29 @@ export default function Customize() {
             <div
               key={tpl.id}
               style={{
-                border: '2px solid #e1e3e5',
-                borderRadius: '12px',
+                border: '1px solid #ebeef0',
+                borderRadius: '16px',
                 overflow: 'hidden',
-                background: '#fff',
+                background: '#ffffff',
                 cursor: 'pointer',
-                transition:
-                  'border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#008060';
-                e.currentTarget.style.boxShadow =
-                  '0 8px 24px rgba(0,128,96,0.12)';
-                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.transform = 'translateY(-6px)';
+                e.currentTarget.style.boxShadow = '0 12px 28px rgba(0,0,0,0.08)';
+                e.currentTarget.style.borderColor = '#d2d5d8';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#e1e3e5';
-                e.currentTarget.style.boxShadow = 'none';
                 e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)';
+                e.currentTarget.style.borderColor = '#ebeef0';
               }}
             >
               {/* Preview image */}
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', borderBottom: '1px solid #f0f2f4' }}>
                 <img
                   src={tpl.img}
                   alt={tpl.title}
@@ -2085,24 +2142,33 @@ export default function Customize() {
                   }}
                   style={{
                     width: '100%',
-                    height: '200px',
+                    height: '220px',
                     objectFit: 'cover',
                     display: 'block',
+                    transition: 'transform 0.5s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.02)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
                   }}
                 />
                 <div
                   style={{
                     position: 'absolute',
-                    top: '12px',
-                    right: '12px',
+                    top: '16px',
+                    right: '16px',
                     background:
-                      tpl.badgeTone === 'success' ? '#e3f1df' : '#e3e8f3',
+                      tpl.badgeTone === 'success' ? '#e3f1df' : '#e6f0ff',
                     color:
-                      tpl.badgeTone === 'success' ? '#1a7f45' : '#4455aa',
-                    padding: '3px 10px',
-                    borderRadius: '20px',
+                      tpl.badgeTone === 'success' ? '#1a7f45' : '#004fe6',
+                    padding: '4px 12px',
+                    borderRadius: '24px',
                     fontSize: '12px',
-                    fontWeight: 600,
+                    fontWeight: '600',
+                    letterSpacing: '0.3px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                   }}
                 >
                   {tpl.badge}
@@ -2110,13 +2176,13 @@ export default function Customize() {
               </div>
 
               {/* Card body */}
-              <div style={{ padding: '20px' }}>
-                <div style={{ marginBottom: 8 }}>
-                  <Text variant="headingMd" as="h3" fontWeight="semibold">
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <Text variant="headingLg" as="h3" fontWeight="bold">
                     {tpl.title}
                   </Text>
                 </div>
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 20 }}>
                   <Text variant="bodyMd" tone="subdued">
                     {tpl.description}
                   </Text>
@@ -2125,15 +2191,25 @@ export default function Customize() {
                 {/* Features list */}
                 <ul
                   style={{
-                    margin: '0 0 20px',
-                    padding: '0 0 0 18px',
-                    fontSize: '13px',
-                    color: '#444',
-                    lineHeight: '1.7',
+                    margin: '0 0 24px',
+                    padding: '0',
+                    fontSize: '14px',
+                    color: '#333',
+                    lineHeight: '1.6',
+                    listStyle: 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    flexGrow: 1,
                   }}
                 >
                   {tpl.features.map((f, i) => (
-                    <li key={i}>{f}</li>
+                    <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#008060" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <span style={{ color: '#4a4a4a' }}>{f}</span>
+                    </li>
                   ))}
                 </ul>
 
@@ -2142,24 +2218,27 @@ export default function Customize() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 12,
+                    gap: 16,
+                    paddingTop: '20px',
+                    borderTop: '1px solid #f0f2f4',
+                    marginTop: 'auto',
                   }}
                 >
                   <div
                     style={{
-                      fontSize: '12px',
-                      color: '#777',
-                      fontStyle: 'italic',
+                      fontSize: '13px',
+                      color: '#666',
+                      fontWeight: '500',
                     }}
                   >
-                    Best for: {tpl.bestFor}
+                    Best for: <span style={{ color: '#202223' }}>{tpl.bestFor}</span>
                   </div>
                   <Button
                     variant="primary"
                     id={`select-template-${tpl.id}`}
                     onClick={() => handlePickLayout(tpl.blockName)}
                   >
-                    Use Template
+                    Customize
                   </Button>
                 </div>
               </div>
@@ -2174,6 +2253,17 @@ export default function Customize() {
   return (
 
     <Page
+      backAction={
+        !initialTemplate
+          ? {
+              content: 'Choose Template',
+              onAction: () => {
+                navigate('/app/customize', { replace: true });
+                setPickedLayout(null);
+              },
+            }
+          : { content: 'Dashboard', url: '/app/dashboard' }
+      }
       title="Customize Template"
       titleMetadata={
         <div className="template-status-meta">
@@ -3749,6 +3839,36 @@ export default function Customize() {
 
             {activeCategory === 'style' && (
               <>
+                <div style={{ marginBottom: 16, padding: '0 4px' }}>
+                  <Text variant="bodySm" as="p" color="subdued" mb="2">
+                    Editing style for:
+                  </Text>
+                  <ButtonGroup segmented>
+                    <Button
+                      size="slim"
+                      icon={DesktopIcon}
+                      pressed={styleDevice === 'desktop'}
+                      onClick={() => {
+                        setStyleDevice('desktop');
+                        setPreviewDevice('desktop');
+                      }}
+                    >
+                      Desktop
+                    </Button>
+                    <Button
+                      size="slim"
+                      icon={MobileIcon}
+                      pressed={styleDevice === 'mobile'}
+                      onClick={() => {
+                        setStyleDevice('mobile');
+                        setPreviewDevice('mobile');
+                      }}
+                    >
+                      Mobile
+                    </Button>
+                  </ButtonGroup>
+                </div>
+
                 {/* Content - Tab 2 */}
                 {config.layout === 'layout4' && (
                   <CollapsibleCard
@@ -4038,8 +4158,8 @@ export default function Customize() {
                                 { label: 'Center', value: 'center' },
                                 { label: 'Right', value: 'right' },
                               ]}
-                              value={config.heading_align || 'left'}
-                              onChange={(v) => updateConfig('heading_align', v)}
+                              value={config[getStyleKey('heading_align')] || 'left'}
+                              onChange={(v) => updateConfig(getStyleKey('heading_align'), v)}
                             />
                             <Select
                               label="Title Font Weight"
@@ -4059,8 +4179,8 @@ export default function Customize() {
                             />
                             <PxField
                               label="Title Size"
-                              value={config.heading_size}
-                              onChange={(v) => updateConfig('heading_size', v)}
+                              value={config[getStyleKey('heading_size')]}
+                              onChange={(v) => updateConfig(getStyleKey('heading_size'), v)}
                             />
                             <ColorPickerField
                               label="Title Color"
@@ -4087,9 +4207,9 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config.title_container_padding_top}
+                                value={config[getStyleKey('title_container_padding_top')]}
                                 onChange={(v) =>
-                                  updateConfig('title_container_padding_top', v)
+                                  updateConfig(getStyleKey('title_container_padding_top'), v)
                                 }
                                 style={{
                                   minWidth: 80,
@@ -4103,10 +4223,10 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Right"
-                                value={config.title_container_padding_right}
+                                value={config[getStyleKey('title_container_padding_right')]}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'title_container_padding_right',
+                                    getStyleKey('title_container_padding_right'),
                                     v
                                   )
                                 }
@@ -4122,10 +4242,10 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Bottom"
-                                value={config.title_container_padding_bottom}
+                                value={config[getStyleKey('title_container_padding_bottom')]}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'title_container_padding_bottom',
+                                    getStyleKey('title_container_padding_bottom'),
                                     v
                                   )
                                 }
@@ -4141,10 +4261,10 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Left"
-                                value={config.title_container_padding_left}
+                                value={config[getStyleKey('title_container_padding_left')]}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'title_container_padding_left',
+                                    getStyleKey('title_container_padding_left'),
                                     v
                                   )
                                 }
@@ -4170,17 +4290,17 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config.title_container_margin_top}
+                                value={config[getStyleKey('title_container_margin_top')]}
                                 onChange={(v) =>
-                                  updateConfig('title_container_margin_top', v)
+                                  updateConfig(getStyleKey('title_container_margin_top'), v)
                                 }
                               />
                               <PxField
                                 label="Bottom"
-                                value={config.title_container_margin_bottom}
+                                value={config[getStyleKey('title_container_margin_bottom')]}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'title_container_margin_bottom',
+                                    getStyleKey('title_container_margin_bottom'),
                                     v
                                   )
                                 }
@@ -4250,9 +4370,9 @@ export default function Customize() {
                                 { label: 'Center', value: 'center' },
                                 { label: 'Right', value: 'right' },
                               ]}
-                              value={config.description_align || 'left'}
+                              value={config[getStyleKey('description_align')] || 'left'}
                               onChange={(v) =>
-                                updateConfig('description_align', v)
+                                updateConfig(getStyleKey('description_align'), v)
                               }
                             />
                             <Select
@@ -4273,9 +4393,9 @@ export default function Customize() {
                             />
                             <PxField
                               label="Description Size"
-                              value={config.description_size}
+                              value={config[getStyleKey('description_size')]}
                               onChange={(v) =>
-                                updateConfig('description_size', v)
+                                updateConfig(getStyleKey('description_size'), v)
                               }
                             />
                             <ColorPickerField
@@ -4547,9 +4667,9 @@ export default function Customize() {
                           />
                           <PxField
                             label="Font Size"
-                            value={config.variant_select_font_size || 13}
+                            value={config[getStyleKey('variant_select_font_size')] || 13}
                             onChange={(v) =>
-                              updateConfig('variant_select_font_size', v)
+                              updateConfig(getStyleKey('variant_select_font_size'), v)
                             }
                             min={10}
                             max={20}
@@ -6451,11 +6571,25 @@ function ComboPreview({
 
   // const previewItemSize = config.preview_item_size; // unused
   const productTitleSize = isMobile
-    ? config.product_title_size_mobile || 13
+    ? config.product_title_size_mobile || 12
     : config.product_title_size_desktop || 15;
   const productPriceSize = isMobile
-    ? config.product_price_size_mobile || 13
+    ? config.product_price_size_mobile || 12
     : config.product_price_size_desktop || 15;
+
+  const headingSize = isMobile
+    ? config.heading_size_mobile || 22
+    : config.heading_size || 28;
+  const descriptionSize = isMobile
+    ? config.description_size_mobile || 13
+    : config.description_size || 15;
+  const headingAlign = isMobile
+    ? config.heading_align_mobile || config.heading_align || 'left'
+    : config.heading_align || 'left';
+  const descriptionAlign = isMobile
+    ? config.description_align_mobile || config.description_align || 'left'
+    : config.description_align || 'left';
+
   const productCardPadding = config.product_card_padding ?? 10;
   const viewportWidth = '100%';
   const columns = isMobile ? config.mobile_columns : config.desktop_columns;
@@ -6483,8 +6617,6 @@ function ComboPreview({
   // const cardHeight = isMobile
   //   ? config.card_height_mobile
   //   : config.card_height_desktop; // unused
-  const headingAlign = config.heading_align || 'left';
-  const descriptionAlign = config.description_align || 'left';
 
   // Title & Description renderer
   const renderTitleDescription = () => (
@@ -6504,7 +6636,7 @@ function ComboPreview({
       >
         <h1
           style={{
-            fontSize: config.heading_size,
+            fontSize: `${headingSize}px`,
             marginBottom: 4,
             color: config.heading_color,
             fontWeight: config.heading_font_weight || 700,
@@ -6530,7 +6662,7 @@ function ComboPreview({
         >
           <p
             style={{
-              fontSize: config.description_size,
+              fontSize: `${descriptionSize}px`,
               color: config.description_color,
               fontWeight: config.description_font_weight || 400,
               textAlign: descriptionAlign,
@@ -8769,28 +8901,60 @@ function ComboPreview({
 
         {/* Title & Description */}
         {config.show_title_description !== false && (
-          <div style={{ padding: '24px 20px', textAlign: headingAlign }}>
-            <h1
+          <div style={{ padding: '24px 20px' }}>
+            <div
               style={{
-                fontSize: `${isMobile ? parseInt(config.heading_size || 28) * 0.8 : config.heading_size || 28}px`,
-                fontWeight: '800',
-                marginBottom: '10px',
-                color: config.heading_color || '#333',
+                width: isMobile ? '100%' : `${config.title_width || 100}%`,
+                textAlign: headingAlign,
+                paddingTop: config.title_container_padding_top || 0,
+                paddingRight: config.title_container_padding_right || 0,
+                paddingBottom: config.title_container_padding_bottom || 0,
+                paddingLeft: config.title_container_padding_left || 0,
+                marginTop: config.title_container_margin_top || 0,
+                marginRight: config.title_container_margin_right || 0,
+                marginBottom: config.title_container_margin_bottom || 0,
+                marginLeft: config.title_container_margin_left || 0,
               }}
             >
-              {config.collection_title || 'Create Your Combo'}
-            </h1>
-            <p
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: `${isMobile ? parseInt(config.heading_size || 28) * 0.8 : config.heading_size || 28}px`,
+                  color: config.heading_color || '#333',
+                  fontWeight: config.heading_font_weight || '700',
+                  lineHeight: 1.2,
+                }}
+              >
+                {config.collection_title || 'Create Your Combo'}
+              </h1>
+            </div>
+            <div
               style={{
-                color: config.description_color || '#666',
-                fontSize: `${config.description_size || 15}px`,
-                lineHeight: '1.5',
+                width: isMobile ? '100%' : `${config.title_width || 100}%`,
                 textAlign: descriptionAlign,
+                paddingTop: config.description_container_padding_top || 0,
+                paddingRight: config.description_container_padding_right || 0,
+                paddingBottom: config.description_container_padding_bottom || 0,
+                paddingLeft: config.description_container_padding_left || 0,
+                marginTop: config.description_container_margin_top || 0,
+                marginRight: config.description_container_margin_right || 0,
+                marginBottom: config.description_container_margin_bottom || 0,
+                marginLeft: config.description_container_margin_left || 0,
               }}
             >
-              {config.collection_description ||
-                'Select items to build your perfect bundle.'}
-            </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: `${descriptionSize}px`,
+                  color: config.description_color || '#666',
+                  fontWeight: config.description_font_weight || '400',
+                  lineHeight: 1.5,
+                }}
+              >
+                {config.collection_description ||
+                  'Select items to build your perfect bundle.'}
+              </p>
+            </div>
           </div>
         )}
 

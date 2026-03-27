@@ -359,28 +359,54 @@ export const action = async ({ request }) => {
         }
       }
 
-      // 2. Fetch products from all step collections
+      // 2. Resolve ALL collection handles from config
       let productList = data.product_list || [];
-      const stepHandles = [];
+      const configSlots = [];
+
+      // Detect collection handles from all possible config fields
       for (let i = 1; i <= 10; i++) {
-        const handle = data.config?.[`step_${i}_collection`];
-        if (!handle) break;
-        stepHandles.push({ step: i, handle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+        const stepHandle = data.config?.[`step_${i}_collection`];
+        if (stepHandle) {
+          configSlots.push({ type: 'step', index: i, handle: stepHandle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+        }
+        const colHandle = data.config?.[`col_${i}`];
+        if (colHandle) {
+          configSlots.push({ type: 'col', index: i, handle: colHandle, limit: parseInt(data.config?.[`col_${i}_limit`]) || null });
+        }
+      }
+      if (data.config?.collection_handle) {
+        configSlots.push({ type: 'single', handle: data.config.collection_handle });
       }
 
-      if (stepHandles.length > 0) {
+      if (configSlots.length > 0) {
         const allProducts = [];
-        for (const { step, handle, limit } of stepHandles) {
-          console.log(`[Templates API] 📦 Fetching products for step ${step} collection: ${handle}`);
-          const collectionId = await fetchCollectionIdByHandle(handle);
-          if (collectionId) {
-            const products = await fetchCollectionProducts(collectionId);
-            products.forEach(p => allProducts.push({ ...p, step, collection_handle: handle, step_limit: limit }));
+        const handleCache = new Map();
+
+        for (const slot of configSlots) {
+          if (!handleCache.has(slot.handle)) {
+            console.log(`[Templates API] 📦 Attempting fetch for: ${slot.handle}`);
+            const collectionId = await fetchCollectionIdByHandle(slot.handle);
+            if (collectionId) {
+              const prods = await fetchCollectionProducts(collectionId);
+              handleCache.set(slot.handle, prods);
+            } else {
+              handleCache.set(slot.handle, []);
+            }
           }
+
+          const products = handleCache.get(slot.handle) || [];
+          products.forEach(p => {
+            const productClone = { ...p, collection_handle: slot.handle };
+            if (slot.type === 'step') {
+              productClone.step = slot.index;
+              productClone.step_limit = slot.limit;
+            }
+            allProducts.push(productClone);
+          });
         }
         if (allProducts.length > 0) productList = allProducts;
       } else if (data.config?.collection_id) {
-        console.log(`[Templates API] 📦 Fetching products for collection: ${data.config.collection_id}`);
+        console.log(`[Templates API] 📦 Fetching products for legacy collection_id: ${data.config.collection_id}`);
         const collectionProducts = await fetchCollectionProducts(data.config.collection_id);
         if (collectionProducts.length > 0) productList = collectionProducts;
       }
@@ -657,23 +683,47 @@ export const action = async ({ request }) => {
         discountId = null; // Ensure ID is null if cleared
       }
 
-      // Fetch products from all step collections (Update)
-      const stepHandlesUpd = [];
+      // Resolve ALL collection handles from config (Update)
+      const configSlotsUpd = [];
       for (let i = 1; i <= 10; i++) {
-        const handle = data.config?.[`step_${i}_collection`];
-        if (!handle) break;
-        stepHandlesUpd.push({ step: i, handle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+        const stepHandle = data.config?.[`step_${i}_collection`];
+        if (stepHandle) {
+          configSlotsUpd.push({ type: 'step', index: i, handle: stepHandle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+        }
+        const colHandle = data.config?.[`col_${i}`];
+        if (colHandle) {
+          configSlotsUpd.push({ type: 'col', index: i, handle: colHandle, limit: parseInt(data.config?.[`col_${i}_limit`]) || null });
+        }
+      }
+      if (data.config?.collection_handle) {
+        configSlotsUpd.push({ type: 'single', handle: data.config.collection_handle });
       }
 
-      if (stepHandlesUpd.length > 0) {
+      if (configSlotsUpd.length > 0) {
         const allProducts = [];
-        for (const { step, handle, limit } of stepHandlesUpd) {
-          console.log(`[Templates API] 📦 Fetching products for step ${step} collection (Update): ${handle}`);
-          const collectionId = await fetchCollectionIdByHandle(handle);
-          if (collectionId) {
-            const products = await fetchCollectionProducts(collectionId);
-            products.forEach(p => allProducts.push({ ...p, step, collection_handle: handle, step_limit: limit }));
+        const handleCache = new Map();
+
+        for (const slot of configSlotsUpd) {
+          if (!handleCache.has(slot.handle)) {
+            console.log(`[Templates API] 📦 Attempting fetch for (Update): ${slot.handle}`);
+            const collectionId = await fetchCollectionIdByHandle(slot.handle);
+            if (collectionId) {
+              const prods = await fetchCollectionProducts(collectionId);
+              handleCache.set(slot.handle, prods);
+            } else {
+              handleCache.set(slot.handle, []);
+            }
           }
+
+          const products = handleCache.get(slot.handle) || [];
+          products.forEach(p => {
+            const productClone = { ...p, collection_handle: slot.handle };
+            if (slot.type === 'step') {
+              productClone.step = slot.index;
+              productClone.step_limit = slot.limit;
+            }
+            allProducts.push(productClone);
+          });
         }
         if (allProducts.length > 0) productList = allProducts;
       } else if (data.config?.collection_id) {
