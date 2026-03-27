@@ -3848,10 +3848,7 @@ export default function Customize() {
                       size="slim"
                       icon={DesktopIcon}
                       pressed={styleDevice === 'desktop'}
-                      onClick={() => {
-                        setStyleDevice('desktop');
-                        setPreviewDevice('desktop');
-                      }}
+                      onClick={() => setStyleDevice('desktop')}
                     >
                       Desktop
                     </Button>
@@ -3859,10 +3856,7 @@ export default function Customize() {
                       size="slim"
                       icon={MobileIcon}
                       pressed={styleDevice === 'mobile'}
-                      onClick={() => {
-                        setStyleDevice('mobile');
-                        setPreviewDevice('mobile');
-                      }}
+                      onClick={() => setStyleDevice('mobile')}
                     >
                       Mobile
                     </Button>
@@ -4171,21 +4165,21 @@ export default function Customize() {
                                 { label: 'Extra Bold (800)', value: '800' },
                               ]}
                               value={String(
-                                config.heading_font_weight || '700'
+                                config[getStyleKey('heading_font_weight')] || config.heading_font_weight || '700'
                               )}
                               onChange={(v) =>
-                                updateConfig('heading_font_weight', v)
+                                updateConfig(getStyleKey('heading_font_weight'), v)
                               }
                             />
                             <PxField
                               label="Title Size"
-                              value={config[getStyleKey('heading_size')]}
+                              value={config[getStyleKey('heading_size')] ?? config.heading_size}
                               onChange={(v) => updateConfig(getStyleKey('heading_size'), v)}
                             />
                             <ColorPickerField
                               label="Title Color"
-                              value={config.heading_color}
-                              onChange={(v) => updateConfig('heading_color', v)}
+                              value={config[getStyleKey('heading_color')] || config.heading_color}
+                              onChange={(v) => updateConfig(getStyleKey('heading_color'), v)}
                             />
                           </div>
                           <div style={{ marginTop: 12 }}>
@@ -4207,7 +4201,7 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('title_container_padding_top')]}
+                                value={config[getStyleKey('title_container_padding_top')] ?? config.title_container_padding_top}
                                 onChange={(v) =>
                                   updateConfig(getStyleKey('title_container_padding_top'), v)
                                 }
@@ -4223,7 +4217,7 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Right"
-                                value={config[getStyleKey('title_container_padding_right')]}
+                                value={config[getStyleKey('title_container_padding_right')] ?? config.title_container_padding_right}
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_padding_right'),
@@ -4242,7 +4236,7 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Bottom"
-                                value={config[getStyleKey('title_container_padding_bottom')]}
+                                value={config[getStyleKey('title_container_padding_bottom')] ?? config.title_container_padding_bottom}
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_padding_bottom'),
@@ -4261,7 +4255,7 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Left"
-                                value={config[getStyleKey('title_container_padding_left')]}
+                                value={config[getStyleKey('title_container_padding_left')] ?? config.title_container_padding_left}
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_padding_left'),
@@ -4290,14 +4284,14 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('title_container_margin_top')]}
+                                value={config[getStyleKey('title_container_margin_top')] ?? config.title_container_margin_top}
                                 onChange={(v) =>
                                   updateConfig(getStyleKey('title_container_margin_top'), v)
                                 }
                               />
                               <PxField
                                 label="Bottom"
-                                value={config[getStyleKey('title_container_margin_bottom')]}
+                                value={config[getStyleKey('title_container_margin_bottom')] ?? config.title_container_margin_bottom}
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_margin_bottom'),
@@ -4307,17 +4301,17 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Left"
-                                value={config.title_container_margin_left}
+                                value={config[getStyleKey('title_container_margin_left')] ?? config.title_container_margin_left}
                                 onChange={(v) =>
-                                  updateConfig('title_container_margin_left', v)
+                                  updateConfig(getStyleKey('title_container_margin_left'), v)
                                 }
                               />
                               <PxField
                                 label="Right"
-                                value={config.title_container_margin_right}
+                                value={config[getStyleKey('title_container_margin_right')] ?? config.title_container_margin_right}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'title_container_margin_right',
+                                    getStyleKey('title_container_margin_right'),
                                     v
                                   )
                                 }
@@ -4385,24 +4379,24 @@ export default function Customize() {
                                 { label: 'Bold (700)', value: '700' },
                               ]}
                               value={String(
-                                config.description_font_weight || '400'
+                                config[getStyleKey('description_font_weight')] || config.description_font_weight || '400'
                               )}
                               onChange={(v) =>
-                                updateConfig('description_font_weight', v)
+                                updateConfig(getStyleKey('description_font_weight'), v)
                               }
                             />
                             <PxField
                               label="Description Size"
-                              value={config[getStyleKey('description_size')]}
+                              value={config[getStyleKey('description_size')] ?? config.description_size}
                               onChange={(v) =>
                                 updateConfig(getStyleKey('description_size'), v)
                               }
                             />
                             <ColorPickerField
                               label="Description Color"
-                              value={config.description_color}
+                              value={config[getStyleKey('description_color')] || config.description_color}
                               onChange={(v) =>
-                                updateConfig('description_color', v)
+                                updateConfig(getStyleKey('description_color'), v)
                               }
                             />
                           </div>
@@ -4425,10 +4419,10 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config.description_container_padding_top}
+                                value={config[getStyleKey('description_container_padding_top')] ?? config.description_container_padding_top}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_padding_top',
+                                    getStyleKey('description_container_padding_top'),
                                     v
                                   )
                                 }
@@ -4436,11 +4430,11 @@ export default function Customize() {
                               <PxField
                                 label="Bottom"
                                 value={
-                                  config.description_container_padding_bottom
+                                  config[getStyleKey('description_container_padding_bottom')] ?? config.description_container_padding_bottom
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_padding_bottom',
+                                    getStyleKey('description_container_padding_bottom'),
                                     v
                                   )
                                 }
@@ -4448,11 +4442,11 @@ export default function Customize() {
                               <PxField
                                 label="Left"
                                 value={
-                                  config.description_container_padding_left
+                                  config[getStyleKey('description_container_padding_left')] ?? config.description_container_padding_left
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_padding_left',
+                                    getStyleKey('description_container_padding_left'),
                                     v
                                   )
                                 }
@@ -4460,11 +4454,11 @@ export default function Customize() {
                               <PxField
                                 label="Right"
                                 value={
-                                  config.description_container_padding_right
+                                  config[getStyleKey('description_container_padding_right')] ?? config.description_container_padding_right
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_padding_right',
+                                    getStyleKey('description_container_padding_right'),
                                     v
                                   )
                                 }
@@ -4490,10 +4484,10 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config.description_container_margin_top}
+                                value={config[getStyleKey('description_container_margin_top')] ?? config.description_container_margin_top}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_margin_top',
+                                    getStyleKey('description_container_margin_top'),
                                     v
                                   )
                                 }
@@ -4501,21 +4495,21 @@ export default function Customize() {
                               <PxField
                                 label="Bottom"
                                 value={
-                                  config.description_container_margin_bottom
+                                  config[getStyleKey('description_container_margin_bottom')] ?? config.description_container_margin_bottom
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_margin_bottom',
+                                    getStyleKey('description_container_margin_bottom'),
                                     v
                                   )
                                 }
                               />
                               <PxField
                                 label="Left"
-                                value={config.description_container_margin_left}
+                                value={config[getStyleKey('description_container_margin_left')] ?? config.description_container_margin_left}
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_margin_left',
+                                    getStyleKey('description_container_margin_left'),
                                     v
                                   )
                                 }
@@ -4523,11 +4517,11 @@ export default function Customize() {
                               <PxField
                                 label="Right"
                                 value={
-                                  config.description_container_margin_right
+                                  config[getStyleKey('description_container_margin_right')] ?? config.description_container_margin_right
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    'description_container_margin_right',
+                                    getStyleKey('description_container_margin_right'),
                                     v
                                   )
                                 }
@@ -6578,17 +6572,55 @@ function ComboPreview({
     : config.product_price_size_desktop || 15;
 
   const headingSize = isMobile
-    ? config.heading_size_mobile || 22
-    : config.heading_size || 28;
+    ? (config.heading_size_mobile ?? config.heading_size ?? 22)
+    : (config.heading_size ?? 28);
   const descriptionSize = isMobile
-    ? config.description_size_mobile || 13
-    : config.description_size || 15;
+    ? (config.description_size_mobile ?? config.description_size ?? 13)
+    : (config.description_size ?? 15);
+
+  const headingColor = isMobile
+    ? (config.heading_color_mobile || config.heading_color)
+    : config.heading_color;
+  const descriptionColor = isMobile
+    ? (config.description_color_mobile || config.description_color)
+    : config.description_color;
+
+  const headingFontWeight = isMobile
+    ? (config.heading_font_weight_mobile || config.heading_font_weight || 700)
+    : (config.heading_font_weight || 700);
+  const descriptionFontWeight = isMobile
+    ? (config.description_font_weight_mobile || config.description_font_weight || 400)
+    : (config.description_font_weight || 400);
+
   const headingAlign = isMobile
-    ? config.heading_align_mobile || config.heading_align || 'left'
-    : config.heading_align || 'left';
+    ? (config.heading_align_mobile || config.heading_align || 'left')
+    : (config.heading_align || 'left');
   const descriptionAlign = isMobile
-    ? config.description_align_mobile || config.description_align || 'left'
-    : config.description_align || 'left';
+    ? (config.description_align_mobile || config.description_align || 'left')
+    : (config.description_align || 'left');
+
+  // Padding & Margins
+  const titlePadding = {
+    top: isMobile ? (config.title_container_padding_top_mobile ?? config.title_container_padding_top) : config.title_container_padding_top,
+    right: isMobile ? (config.title_container_padding_right_mobile ?? config.title_container_padding_right) : config.title_container_padding_right,
+    bottom: isMobile ? (config.title_container_padding_bottom_mobile ?? config.title_container_padding_bottom) : config.title_container_padding_bottom,
+    left: isMobile ? (config.title_container_padding_left_mobile ?? config.title_container_padding_left) : config.title_container_padding_left,
+    marginTop: isMobile ? (config.title_container_margin_top_mobile ?? config.title_container_margin_top) : config.title_container_margin_top,
+    marginRight: isMobile ? (config.title_container_margin_right_mobile ?? config.title_container_margin_right) : config.title_container_margin_right,
+    marginBottom: isMobile ? (config.title_container_margin_bottom_mobile ?? config.title_container_margin_bottom) : config.title_container_margin_bottom,
+    marginLeft: isMobile ? (config.title_container_margin_left_mobile ?? config.title_container_margin_left) : config.title_container_margin_left
+  };
+
+  const descriptionPadding = {
+    top: isMobile ? (config.description_container_padding_top_mobile ?? config.description_container_padding_top) : config.description_container_padding_top,
+    right: isMobile ? (config.description_container_padding_right_mobile ?? config.description_container_padding_right) : config.description_container_padding_right,
+    bottom: isMobile ? (config.description_container_padding_bottom_mobile ?? config.description_container_padding_bottom) : config.description_container_padding_bottom,
+    left: isMobile ? (config.description_container_padding_left_mobile ?? config.description_container_padding_left) : config.description_container_padding_left,
+    marginTop: isMobile ? (config.description_container_margin_top_mobile ?? config.description_container_margin_top) : config.description_container_margin_top,
+    marginRight: isMobile ? (config.description_container_margin_right_mobile ?? config.description_container_margin_right) : config.description_container_margin_right,
+    marginBottom: isMobile ? (config.description_container_margin_bottom_mobile ?? config.description_container_margin_bottom) : config.description_container_margin_bottom,
+    marginLeft: isMobile ? (config.description_container_margin_left_mobile ?? config.description_container_margin_left) : config.description_container_margin_left
+  };
 
   const productCardPadding = config.product_card_padding ?? 10;
   const viewportWidth = '100%';
@@ -6623,14 +6655,14 @@ function ComboPreview({
     <div style={{ width: `${config.title_width || 100}%`, margin: '0 auto' }}>
       <div
         style={{
-          paddingTop: config.title_container_padding_top,
-          paddingRight: config.title_container_padding_right,
-          paddingBottom: config.title_container_padding_bottom,
-          paddingLeft: config.title_container_padding_left,
-          marginTop: config.title_container_margin_top,
-          marginRight: config.title_container_margin_right,
-          marginBottom: config.title_container_margin_bottom,
-          marginLeft: config.title_container_margin_left,
+          paddingTop: titlePadding.top,
+          paddingRight: titlePadding.right,
+          paddingBottom: titlePadding.bottom,
+          paddingLeft: titlePadding.left,
+          marginTop: titlePadding.marginTop,
+          marginRight: titlePadding.marginRight,
+          marginBottom: titlePadding.marginBottom,
+          marginLeft: titlePadding.marginLeft,
           textAlign: headingAlign,
         }}
       >
@@ -6638,8 +6670,8 @@ function ComboPreview({
           style={{
             fontSize: `${headingSize}px`,
             marginBottom: 4,
-            color: config.heading_color,
-            fontWeight: config.heading_font_weight || 700,
+            color: headingColor,
+            fontWeight: headingFontWeight,
             textAlign: headingAlign,
           }}
         >
@@ -6649,22 +6681,22 @@ function ComboPreview({
       {config.collection_description && (
         <div
           style={{
-            paddingTop: config.description_container_padding_top,
-            paddingRight: config.description_container_padding_right,
-            paddingBottom: config.description_container_padding_bottom,
-            paddingLeft: config.description_container_padding_left,
-            marginTop: config.description_container_margin_top,
-            marginRight: config.description_container_margin_right,
-            marginBottom: config.description_container_margin_bottom,
-            marginLeft: config.description_container_margin_left,
+            paddingTop: descriptionPadding.top,
+            paddingRight: descriptionPadding.right,
+            paddingBottom: descriptionPadding.bottom,
+            paddingLeft: descriptionPadding.left,
+            marginTop: descriptionPadding.marginTop,
+            marginRight: descriptionPadding.marginRight,
+            marginBottom: descriptionPadding.marginBottom,
+            marginLeft: descriptionPadding.marginLeft,
             textAlign: descriptionAlign,
           }}
         >
           <p
             style={{
               fontSize: `${descriptionSize}px`,
-              color: config.description_color,
-              fontWeight: config.description_font_weight || 400,
+              color: descriptionColor,
+              fontWeight: descriptionFontWeight,
               textAlign: descriptionAlign,
             }}
           >

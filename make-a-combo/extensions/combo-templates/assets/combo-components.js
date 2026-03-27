@@ -239,21 +239,40 @@ function getTitleHtml(cfg) {
   if (cfg.show_title_description === false) return '';
   const isMobile = window.innerWidth < 768;
   const w = cfg.title_width || 100;
-  const hSize = isMobile ? (cfg.heading_size_mobile || 22) : (cfg.heading_size || 28);
-  const dSize = isMobile ? (cfg.description_size_mobile || 13) : (cfg.description_size || 15);
+  
+  // Responsive Typography
+  const hSize = isMobile ? (cfg.heading_size_mobile ?? cfg.heading_size ?? 22) : (cfg.heading_size ?? 28);
+  const dSize = isMobile ? (cfg.description_size_mobile ?? cfg.description_size ?? 13) : (cfg.description_size ?? 15);
+  const hColor = isMobile ? (cfg.heading_color_mobile || cfg.heading_color || '#333') : (cfg.heading_color || '#333');
+  const dColor = isMobile ? (cfg.description_color_mobile || cfg.description_color || '#666') : (cfg.description_color || '#666');
+  const hWeight = isMobile ? (cfg.heading_font_weight_mobile || cfg.heading_font_weight || 700) : (cfg.heading_font_weight || 700);
+  const dWeight = isMobile ? (cfg.description_font_weight_mobile || cfg.description_font_weight || 400) : (cfg.description_font_weight || 400);
   const hAlign = isMobile ? (cfg.heading_align_mobile || cfg.heading_align || 'left') : (cfg.heading_align || 'left');
   const dAlign = isMobile ? (cfg.description_align_mobile || cfg.description_align || 'left') : (cfg.description_align || 'left');
 
-  const tpad = `${cfg.title_container_padding_top||0}px ${cfg.title_container_padding_right||0}px ${cfg.title_container_padding_bottom||0}px ${cfg.title_container_padding_left||0}px`;
-  const tmar = `${cfg.title_container_margin_top||0}px ${cfg.title_container_margin_right||0}px ${cfg.title_container_margin_bottom||0}px ${cfg.title_container_margin_left||0}px`;
-  const dpad = `${cfg.description_container_padding_top||0}px ${cfg.description_container_padding_right||0}px ${cfg.description_container_padding_bottom||0}px ${cfg.description_container_padding_left||0}px`;
-  const dmar = `${cfg.description_container_margin_top||0}px ${cfg.description_container_margin_right||0}px ${cfg.description_container_margin_bottom||0}px ${cfg.description_container_margin_left||0}px`;
+  // Responsive Spacing
+  const tpad = isMobile 
+    ? `${cfg.title_container_padding_top_mobile ?? cfg.title_container_padding_top ?? 0}px ${cfg.title_container_padding_right_mobile ?? cfg.title_container_padding_right ?? 0}px ${cfg.title_container_padding_bottom_mobile ?? cfg.title_container_padding_bottom ?? 0}px ${cfg.title_container_padding_left_mobile ?? cfg.title_container_padding_left ?? 0}px`
+    : `${cfg.title_container_padding_top||0}px ${cfg.title_container_padding_right||0}px ${cfg.title_container_padding_bottom||0}px ${cfg.title_container_padding_left||0}px`;
+  
+  const tmar = isMobile
+    ? `${cfg.title_container_margin_top_mobile ?? cfg.title_container_margin_top ?? 0}px ${cfg.title_container_margin_right_mobile ?? cfg.title_container_margin_right ?? 0}px ${cfg.title_container_margin_bottom_mobile ?? cfg.title_container_margin_bottom ?? 0}px ${cfg.title_container_margin_left_mobile ?? cfg.title_container_margin_left ?? 0}px`
+    : `${cfg.title_container_margin_top||0}px ${cfg.title_container_margin_right||0}px ${cfg.title_container_margin_bottom||0}px ${cfg.title_container_margin_left||0}px`;
+
+  const dpad = isMobile
+    ? `${cfg.description_container_padding_top_mobile ?? cfg.description_container_padding_top ?? 0}px ${cfg.description_container_padding_right_mobile ?? cfg.description_container_padding_right ?? 0}px ${cfg.description_container_padding_bottom_mobile ?? cfg.description_container_padding_bottom ?? 0}px ${cfg.description_container_padding_left_mobile ?? cfg.description_container_padding_left ?? 0}px`
+    : `${cfg.description_container_padding_top||0}px ${cfg.description_container_padding_right||0}px ${cfg.description_container_padding_bottom||0}px ${cfg.description_container_padding_left||0}px`;
+
+  const dmar = isMobile
+    ? `${cfg.description_container_margin_top_mobile ?? cfg.description_container_margin_top ?? 0}px ${cfg.description_container_margin_right_mobile ?? cfg.description_container_margin_right ?? 0}px ${cfg.description_container_margin_bottom_mobile ?? cfg.description_container_margin_bottom ?? 0}px ${cfg.description_container_margin_left_mobile ?? cfg.description_container_margin_left ?? 0}px`
+    : `${cfg.description_container_margin_top||0}px ${cfg.description_container_margin_right||0}px ${cfg.description_container_margin_bottom||0}px ${cfg.description_container_margin_left||0}px`;
+
   return `
-  <div style="width:${w}%;box-sizing:border-box;">
+  <div style="width:${w}%;box-sizing:border-box;margin:0 auto;">
     <div style="padding:${tpad};margin:${tmar};text-align:${hAlign};">
-      <h1 style="font-size:${hSize}px;font-weight:${cfg.heading_font_weight||700};color:${cfg.heading_color||'#333'};margin:0;">${cfg.collection_title||'Create Your Combo'}</h1>
+      <h1 style="font-size:${hSize}px;font-weight:${hWeight};color:${hColor};margin:0;">${cfg.collection_title||'Create Your Combo'}</h1>
     </div>
-    ${cfg.collection_description ? `<div style="padding:${dpad};margin:${dmar};text-align:${dAlign};"><p style="font-size:${dSize}px;font-weight:${cfg.description_font_weight||400};color:${cfg.description_color||'#666'};line-height:1.5;margin:0;">${cfg.collection_description}</p></div>` : ''}
+    ${cfg.collection_description ? `<div style="padding:${dpad};margin:${dmar};text-align:${dAlign};"><p style="font-size:${dSize}px;font-weight:${dWeight};color:${dColor};line-height:1.5;margin:0;">${cfg.collection_description}</p></div>` : ''}
   </div>`;
 }
 
