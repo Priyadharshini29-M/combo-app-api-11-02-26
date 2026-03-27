@@ -265,6 +265,62 @@ export function transformAnalytics(visitors = [], clicks = []) {
 }
 
 /**
+ * Fetch discount list with real usage counts from Shopify GraphQL.
+ * Returns array of { title, code, status, usage, usedCount }.
+ */
+export async function getShopifyDiscounts(admin) {
+  try {
+    const res = await admin.graphql(`
+      #graphql
+      query {
+        discountNodes(first: 100, sortKey: CREATED_AT, reverse: true) {
+          edges {
+            node {
+              id
+              discount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title status usageLimit
+                  codes(first: 1) { edges { node { code asyncUsageCount } } }
+                }
+                ... on DiscountCodeBxgy {
+                  title status usageLimit
+                  codes(first: 1) { edges { node { code asyncUsageCount } } }
+                }
+                ... on DiscountCodeFreeShipping {
+                  title status usageLimit
+                  codes(first: 1) { edges { node { code asyncUsageCount } } }
+                }
+              }
+            }
+          }
+        }
+      }
+    `);
+    const json = await res.json();
+    const edges = json.data?.discountNodes?.edges || [];
+    return edges
+      .filter(({ node }) => node?.discount?.codes)
+      .map(({ node }) => {
+        const d = node.discount;
+        const codeNode = d.codes?.edges?.[0]?.node;
+        const usedCount = codeNode?.asyncUsageCount ?? 0;
+        const usageLimit = d.usageLimit ?? null;
+        return {
+          title: d.title || 'Untitled',
+          code: codeNode?.code || '',
+          status: d.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
+          usedCount,
+          usage: `${usedCount} / ${usageLimit !== null ? usageLimit : 'Unlimited'}`,
+        };
+      });
+  } catch (e) {
+    console.error('[API] ❌ getShopifyDiscounts failed:', e.message);
+    return [];
+  }
+}
+
+/**
  * Unified Analytics Fetcher (Uses analytics.php)
  */
 export async function getAnalytics(shop, start, end, dateRange) {
@@ -287,9 +343,16 @@ export async function getAnalytics(shop, start, end, dateRange) {
   console.log(`[API] 📊 Fetching Unified Analytics: ${url.toString()}`);
 
   try {
-    const response = await fetch(url.toString());
+    // Fetch analytics and active discounts in parallel
+    const [response, discountRes] = await Promise.all([
+      fetch(url.toString()),
+      fetch(`${BASE_PHP_URL}/discount.php?shopdomain=${shop}&shop=${shop}`)
+        .then(r => r.json())
+        .catch(() => ({ data: [] })),
+    ]);
+
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    
+
     const rawResponse = await response.json();
     if (!rawResponse.success || !rawResponse.data) {
        console.error(`[API] ❌ Invalid data format:`, rawResponse);
@@ -297,6 +360,24 @@ export async function getAnalytics(shop, start, end, dateRange) {
     }
 
     const phpData = rawResponse.data;
+
+    // Normalize and count active discounts from discount.php
+    const rawDiscounts = discountRes.data || [];
+    const normalizedDiscounts = rawDiscounts.map((d) => {
+      const s1 = d.settings && typeof d.settings === 'object' ? d.settings : {};
+      const s2 = s1.settings && typeof s1.settings === 'object' ? s1.settings : {};
+      const flat = { ...d, ...s1, ...s2 };
+      return {
+        title: flat.title || flat.discount_title || 'Untitled',
+        code: flat.code || flat.discount_code || '',
+        status: flat.status || 'active',
+        usage: flat.usage || '0 / Unlimited',
+        value: flat.value || '0',
+        valueType: flat.valueType || 'percentage',
+      };
+    });
+    const activeDiscountCount = normalizedDiscounts.filter(d => d.status === 'active').length;
+    console.log(`[API] 🏷️ Active discounts for ${shop}: ${activeDiscountCount}`);
 
     // Normalize template names
     const normalize = (name) =>
@@ -361,7 +442,8 @@ export async function getAnalytics(shop, start, end, dateRange) {
       totalVisitors: Number(phpData.total_visitors || 0),
       totalClicks: Number(phpData.total_clicks || 0),
       checkoutClicks: Number(phpData.total_checkouts || 0),
-      discountUsage: Number(phpData.total_discounts || 0),
+      discountUsage: activeDiscountCount > 0 ? activeDiscountCount : Number(phpData.total_discounts || 0),
+      discountList: normalizedDiscounts,
       topTemplate: topTemplate,
       byTemplate: byTemplate,
       chartData: chartData,

@@ -139,6 +139,8 @@ export const loader = async ({ request }) => {
             const usedCount = codeNode?.asyncUsageCount ?? 0;
             const usageLimit = d.usageLimit ?? null;
             const usage = `${usedCount} / ${usageLimit !== null ? usageLimit : 'Unlimited'}`;
+            // Keep raw usedCount so we can sum it accurately later
+            const usedCountRaw = usedCount;
 
             let type = 'amount_off_products';
             const typeName = d.__typename || '';
@@ -160,6 +162,7 @@ export const loader = async ({ request }) => {
               status:
                 d.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
               usage,
+              usedCount: usedCountRaw,
               created: new Date(d.createdAt || Date.now()).toLocaleDateString(
                 'en-US',
                 {
@@ -256,7 +259,25 @@ export const loader = async ({ request }) => {
       (a, b) => new Date(b.created || 0) - new Date(a.created || 0)
     );
 
-    return json({ discounts: combined.filter((d) => d.method === 'code') });
+    // Build set of discount codes that were created by this app (from PHP backend)
+    const appCreatedCodes = new Set(
+      remoteDiscounts.map((rem) => {
+        const s1 = rem.settings && typeof rem.settings === 'object' ? rem.settings : {};
+        const s2 = s1.settings && typeof s1.settings === 'object' ? s1.settings : {};
+        const flat = { ...rem, ...s1, ...s2 };
+        return (flat.code || flat.discount_code || '').trim().toLowerCase();
+      }).filter(Boolean)
+    );
+
+    // Sum usedCount only for Shopify discounts whose code matches an app-created discount
+    const totalUsage = shopifyDiscounts
+      .filter((d) => appCreatedCodes.has((d.code || '').trim().toLowerCase()))
+      .reduce((sum, d) => sum + (d.usedCount || 0), 0);
+
+    console.log(`[Loader] App codes from PHP: ${[...appCreatedCodes].join(', ')}`);
+    console.log(`[Loader] Total usage computed: ${totalUsage}`);
+
+    return json({ discounts: combined.filter((d) => d.method === 'code'), totalUsage });
   } catch (error) {
     console.error('Failed to fetch discounts from PHP:', error);
     // Normalize raw PHP records before returning fallback
@@ -1111,7 +1132,7 @@ export default function DiscountEngine() {
     { label: 'Bag', value: 'prod_4' },
   ];
   const shopify = useAppBridge();
-  const { discounts: initialDiscounts } = useLoaderData();
+  const { discounts: initialDiscounts, totalUsage: loaderTotalUsage } = useLoaderData();
   const fetcher = useFetcher();
   const [discounts, setDiscounts] = useState(initialDiscounts);
 
@@ -1891,14 +1912,10 @@ export default function DiscountEngine() {
                   TOTAL USAGE
                 </Text>
                 <Text variant="headingLg" as="p">
-                  {discounts.reduce(
-                    (sum, d) =>
-                      sum + (parseInt(d.usage?.split(' / ')[0] || 0) || 0),
-                    0
-                  )}
+                  {loaderTotalUsage ?? 0}
                 </Text>
                 <Text variant="bodySm" tone="subdued">
-                  across all discounts
+                  times applied on orders
                 </Text>
               </BlockStack>
             </Card>

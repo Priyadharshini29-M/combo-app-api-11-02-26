@@ -24,20 +24,24 @@ export const loader = async ({ request }) => {
 
     const themeId = activeTheme.id.split('/').pop();
 
-    const assetRes = await admin.rest.get({
-      path: `themes/${themeId}/assets`,
-      query: { 'asset[key]': 'config/settings_data.json' },
+    const assetUrl = `https://${shop}/admin/api/2025-01/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`;
+    const assetRes = await fetch(assetUrl, {
+      headers: {
+        'X-Shopify-Access-Token': session.accessToken,
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!assetRes.ok) {
-      return json({ error: `REST failed: ${assetRes.status}` });
+      const text = await assetRes.text();
+      return json({ error: `REST failed: ${assetRes.status}`, body: text });
     }
 
     const assetBody = await assetRes.json();
     const assetValue = assetBody.asset?.value;
 
     if (!assetValue) {
-      return json({ error: 'No asset value returned' });
+      return json({ error: 'No asset value returned', raw: assetBody });
     }
 
     const settingsData = JSON.parse(assetValue);

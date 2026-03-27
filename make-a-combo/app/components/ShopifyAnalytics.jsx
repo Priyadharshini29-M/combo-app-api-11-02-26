@@ -44,7 +44,7 @@ import { useFetcher } from '@remix-run/react';
 // --- Dashboard Component ---
 export function ShopifyAnalytics({ initialData }) {
   const fetcher = useFetcher();
-  const [data, setData] = useState(initialData || { totalVisitors: 0, totalClicks: 0, checkoutClicks: 0, discountUsage: 0, topTemplate: 'None', byTemplate: [], chartData: [] });
+  const [data, setData] = useState(initialData || { totalVisitors: 0, totalClicks: 0, checkoutClicks: 0, discountUsage: 0, discountList: [], topTemplate: 'None', byTemplate: [], chartData: [] });
   const [isLoading, setIsLoading] = useState(false);
 
   // Convert a Date object into YYYY-MM-DD in the browser's local timezone.
@@ -250,7 +250,7 @@ export function ShopifyAnalytics({ initialData }) {
                     <Icon source={DiscountIcon} tone="caution" />
                   </Box>
                   <BlockStack gap="100">
-                    <Text variant="bodySm" fontWeight="medium" tone="subdued">Discounts Applied</Text>
+                    <Text variant="bodySm" fontWeight="medium" tone="subdued">Active Discounts</Text>
                     <Text variant="headingLg" as="p">{data.discountUsage.toLocaleString()}</Text>
                   </BlockStack>
                 </InlineStack>
@@ -329,8 +329,32 @@ export function ShopifyAnalytics({ initialData }) {
                 </Card>
                 <Card padding="400">
                   <BlockStack gap="300">
-                    <Text variant="headingSm">Discount Usage</Text>
-                    <Text variant="bodySm" tone="subdued">0 Active Discounts (Derived from clicks)</Text>
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="headingSm">Discount Usage</Text>
+                      <Badge tone={data.discountUsage > 0 ? 'success' : 'subdued'}>{data.discountUsage} active</Badge>
+                    </InlineStack>
+                    {(data.discountList || []).length > 0 ? (
+                      <BlockStack gap="200">
+                        {data.discountList.map((d, idx) => (
+                          <Box key={idx} padding="200" background="bg-surface-secondary" borderRadius="200">
+                            <BlockStack gap="100">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text variant="bodySm" fontWeight="bold" truncate>{d.title}</Text>
+                                <Badge tone={d.status === 'active' ? 'success' : 'subdued'}>{d.status}</Badge>
+                              </InlineStack>
+                              <InlineStack align="space-between">
+                                <Text variant="bodySm" tone="subdued">
+                                  {d.code ? d.code : (d.valueType === 'percentage' ? `${d.value}% off` : `$${d.value} off`)}
+                                </Text>
+                                <Text variant="bodySm" tone="subdued">Used: {d.usage}</Text>
+                              </InlineStack>
+                            </BlockStack>
+                          </Box>
+                        ))}
+                      </BlockStack>
+                    ) : (
+                      <Text variant="bodySm" tone="subdued">No discounts found</Text>
+                    )}
                   </BlockStack>
                 </Card>
                 <Card padding="400">

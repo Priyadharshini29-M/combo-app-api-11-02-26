@@ -4,7 +4,7 @@ import { json } from '@remix-run/node';
 import fs from 'fs';
 import path from 'path';
 import { authenticate } from '../shopify.server';
-import { getVisitors, getClicks, transformAnalytics, BASE_PHP_URL, sendToPhp, getAnalytics } from '../utils/api-helpers';
+import { getVisitors, getClicks, transformAnalytics, BASE_PHP_URL, sendToPhp, getAnalytics, getShopifyDiscounts } from '../utils/api-helpers';
 import { EnableThemeButton } from '../components/EnableThemeButton';
 import { ShopifyAnalytics } from '../components/ShopifyAnalytics';
 
@@ -55,44 +55,56 @@ export const loader = async ({ request }) => {
     if (activeTheme) {
       const themeId = activeTheme.id.split('/').pop();
 
-      // 2. Read settings_data.json to check if app embed block is enabled
-      const assetRes = await admin.rest.get({
-        path: `themes/${themeId}/assets`,
-        query: { 'asset[key]': 'config/settings_data.json' },
-      });
+      // 2. Read settings_data.json via direct Shopify REST call using session access token
+      try {
+        const assetUrl = `https://${shop}/admin/api/2025-01/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`;
+        const assetRes = await fetch(assetUrl, {
+          headers: {
+            'X-Shopify-Access-Token': session.accessToken,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (assetRes.ok) {
-        const assetBody = await assetRes.json();
-        const assetValue = assetBody.asset?.value;
-        if (assetValue) {
-          const settingsData = JSON.parse(assetValue);
-          const blocks = settingsData.current?.blocks || {};
+        if (assetRes.ok) {
+          const assetBody = await assetRes.json();
+          const assetValue = assetBody.asset?.value;
 
-          // Debug: log all block types so we can verify the exact match string
-          console.log(
-            '[Dashboard] All theme blocks:',
-            Object.entries(blocks).map(([k, b]) => ({
-              key: k,
-              type: b.type,
-              disabled: b.disabled,
-            }))
-          );
+          if (assetValue) {
+            const settingsData = JSON.parse(assetValue);
+            const blocks = settingsData.current?.blocks || {};
 
-          const matchedKey = Object.keys(blocks).find((key) => {
-            const type = blocks[key].type || '';
-            return (
-              type.includes(EXTENSION_UUID) ||
-              type.includes('combo_global') ||
-              type.includes('combo-global')
+            console.log(
+              '[Dashboard] All theme blocks:',
+              Object.entries(blocks).map(([k, b]) => ({
+                key: k,
+                type: b.type,
+                disabled: b.disabled,
+              }))
             );
-          });
 
-          if (matchedKey) {
-            isEnabled = blocks[matchedKey].disabled !== true;
-          } else {
-            isEnabled = false; // block not added to theme
+            const matchedKey = Object.keys(blocks).find((key) => {
+              const type = blocks[key].type || '';
+              return (
+                type.includes(EXTENSION_UUID) ||
+                type.includes('combo_builder') ||
+                type.includes('combo_global') ||
+                type.includes('combo-global')
+              );
+            });
+
+            if (matchedKey) {
+              isEnabled = blocks[matchedKey].disabled !== true;
+              console.log(`[Dashboard] Matched block "${matchedKey}", disabled=${blocks[matchedKey].disabled}, isEnabled=${isEnabled}`);
+            } else {
+              isEnabled = false;
+              console.log('[Dashboard] No matching block found in theme. Block types present:', Object.values(blocks).map(b => b.type));
+            }
           }
+        } else {
+          console.error('[Dashboard] Asset fetch failed:', assetRes.status, await assetRes.text());
         }
+      } catch (assetErr) {
+        console.error('[Dashboard] Asset fetch error:', assetErr.message);
       }
     }
 
@@ -168,15 +180,24 @@ export const loader = async ({ request }) => {
 
   console.log(`[Dashboard] Fetching analytics for ${shop} (${start} to ${end})`);
   
-  const analyticsData = (await getAnalytics(shop, start, end)) || {
-    totalVisitors: 0,
-    totalClicks: 0,
-    checkoutClicks: 0,
-    discountUsage: 0,
-    topTemplate: 'None',
-    byTemplate: [],
-    chartData: [],
-  };
+  const [analyticsData, shopifyDiscounts] = await Promise.all([
+    getAnalytics(shop, start, end).then(d => d || {
+      totalVisitors: 0,
+      totalClicks: 0,
+      checkoutClicks: 0,
+      discountUsage: 0,
+      discountList: [],
+      topTemplate: 'None',
+      byTemplate: [],
+      chartData: [],
+    }),
+    getShopifyDiscounts(admin),
+  ]);
+
+  if (shopifyDiscounts.length > 0) {
+    analyticsData.discountList = shopifyDiscounts;
+    analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
+  }
 
   return json({ layoutFiles, shopName, isEnabled, analyticsData });
 };

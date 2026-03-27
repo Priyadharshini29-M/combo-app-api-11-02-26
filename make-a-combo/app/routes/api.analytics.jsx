@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { getAnalytics } from "../utils/api-helpers";
+import { getAnalytics, getShopifyDiscounts } from "../utils/api-helpers";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -44,10 +44,18 @@ export const loader = async ({ request }) => {
 
   console.log(`[API Analytics] Loader triggered for ${shop}`);
 
-  const analyticsData = await getAnalytics(shop, computedStart, computedEnd, dateRange);
+  const [analyticsData, shopifyDiscounts] = await Promise.all([
+    getAnalytics(shop, computedStart, computedEnd, dateRange),
+    getShopifyDiscounts(admin),
+  ]);
 
   if (!analyticsData) {
     return json({ error: "Failed to fetch analytics data" }, { status: 500 });
+  }
+
+  if (shopifyDiscounts.length > 0) {
+    analyticsData.discountList = shopifyDiscounts;
+    analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
   }
 
   return json(analyticsData);
