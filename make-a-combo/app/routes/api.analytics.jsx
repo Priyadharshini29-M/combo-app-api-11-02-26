@@ -3,7 +3,7 @@ import { authenticate } from "../shopify.server";
 import { getAnalytics, getShopifyDiscounts } from "../utils/api-helpers";
 
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
 
   const url = new URL(request.url);
@@ -53,9 +53,20 @@ export const loader = async ({ request }) => {
     return json({ error: "Failed to fetch analytics data" }, { status: 500 });
   }
 
-  if (shopifyDiscounts.length > 0) {
-    analyticsData.discountList = shopifyDiscounts;
+  const appliedDiscounts = (shopifyDiscounts || [])
+    .filter(d => d.usedCount > 0 && d.status === 'active')
+    .map(d => ({
+      discount_name: d.code || d.title,
+      usage_count: d.usedCount
+    }))
+    .sort((a, b) => b.usage_count - a.usage_count)
+    .slice(0, 5);
+
+  analyticsData.discountList = appliedDiscounts;
+  if (shopifyDiscounts && shopifyDiscounts.length > 0) {
     analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
+  } else {
+    analyticsData.discountList = [];
   }
 
   return json(analyticsData);
@@ -63,7 +74,7 @@ export const loader = async ({ request }) => {
 
 // ✅ ACTION (also fixed)
 export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
 
   try {
@@ -119,9 +130,29 @@ export const action = async ({ request }) => {
       }
     }
 
-    const analyticsData = await getAnalytics(shop, computedStart, computedEnd, dateRange);
+    const [analyticsData, shopifyDiscounts] = await Promise.all([
+      getAnalytics(shop, computedStart, computedEnd, dateRange),
+      getShopifyDiscounts(admin),
+    ]);
+
     if (!analyticsData) {
       return json({ error: "Failed to fetch analytics data" }, { status: 500 });
+    }
+
+    const appliedDiscounts = (shopifyDiscounts || [])
+      .filter(d => d.usedCount > 0 && d.status === 'active')
+      .map(d => ({
+        discount_name: d.code || d.title,
+        usage_count: d.usedCount
+      }))
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, 5);
+
+    analyticsData.discountList = appliedDiscounts;
+    if (shopifyDiscounts && shopifyDiscounts.length > 0) {
+      analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
+    } else {
+      analyticsData.discountList = [];
     }
 
     // Keep response consistent with loader.

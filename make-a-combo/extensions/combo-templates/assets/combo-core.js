@@ -1,6 +1,8 @@
 /* ===================== SHARED LOGIC ===================== */
 function bindStandardLogic({ cfg, products }) {
-  const selected     = {};
+  // Use persistent state to ensure selections survive collection switches (e.g. tabs)
+  if (!window.comboSelected) window.comboSelected = {};
+  const selected     = window.comboSelected;
   const maxSel       = parseInt(cfg.max_products) || 5;
   const discountPc   = parseFloat(cfg.discount_percentage) || 0;
   const limitMsg     = (cfg.limit_reached_message || 'Limit reached!').replace(/\{\{limit\}\}|__LIMIT__/g, maxSel);
@@ -20,6 +22,9 @@ function bindStandardLogic({ cfg, products }) {
       let variantId = String(i.id || '').trim();
       const cardId = String(i.cardId || '').trim();
       const qty = parseInt(i.qty, 10) || 0;
+      if (!/^[0-9]+$/.test(variantId)) {
+        variantId = normalizeVariantId(variantId);
+      }
       if (!/^[0-9]+$/.test(variantId)) {
         const product = getProductByCardId(cardId);
         if (product && Array.isArray(product.variants) && product.variants.length > 0) { variantId = normalizeVariantId(product.variants[0].id); }
@@ -55,12 +60,26 @@ function bindStandardLogic({ cfg, products }) {
 
   document.querySelectorAll('.cdo-card').forEach(card => {
     const id = card.dataset.id; const price = toSafeNumber(card.dataset.price); const image = toSafeImage(card.dataset.image); const product = getProductByCardId(id);
-    function updateCard() { const qty = getCardSelectionQty(id); const qtyEl = card.querySelector('.cdo-qty-value'); if (qtyEl) qtyEl.value = qty; card.style.border = qty > 0 ? `2px solid ${hl}` : `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; const addBtn = card.querySelector('.cdo-add-btn'); if (addBtn) addBtn.textContent = qty > 0 ? (cfg.product_add_btn_text||'Added') : (cfg.product_add_btn_text||cfg.add_btn_text||'Add'); const tick = card.querySelector('.cdo-tick'); if (tick) tick.classList.toggle('visible', qty > 0); updateAll(); }
+    function updateCard(skipUpdateAll = false) { 
+      const qty = getCardSelectionQty(id); 
+      const qtyEl = card.querySelector('.cdo-qty-value'); 
+      if (qtyEl) qtyEl.value = qty; 
+      card.style.border = qty > 0 ? `2px solid ${hl}` : `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; 
+      const addBtn = card.querySelector('.cdo-add-btn'); 
+      if (addBtn) addBtn.textContent = qty > 0 ? (cfg.product_add_btn_text||'Added') : (cfg.product_add_btn_text||cfg.add_btn_text||'Add'); 
+      const tick = card.querySelector('.cdo-tick'); 
+      if (tick) tick.classList.toggle('visible', qty > 0); 
+      if (!skipUpdateAll) updateAll(); 
+    }
     const onInc = (overrideVariant) => {
       if (card.dataset.soldout === '1') { showToast('This product is sold out.'); return; }
       const total = Object.values(selected).reduce((s,i) => s+i.qty, 0); if (total >= maxSel) { showToast(limitMsg); return; }
       const displayMode = cfg.product_card_variants_display || 'static';
-      if (overrideVariant) {
+      
+      // Fix: Check if overrideVariant is a real variant object (has id and is not an Event)
+      const isOverride = overrideVariant && typeof overrideVariant === 'object' && !overrideVariant.preventDefault && overrideVariant.id;
+
+      if (isOverride) {
         let key = String(overrideVariant.id || '').trim(); const vPrice = toSafeNumber(overrideVariant.price, price); const vImage = toSafeImage(overrideVariant.image) || image;
         if (!/^\d+$/.test(key)) { const fallbackVariant = product && (product.variants || []).length > 0 ? normalizeVariantId(product.variants[0].id) : ''; key = fallbackVariant; }
         if (!/^\d+$/.test(key)) { showToast('Please select a valid variant.'); return; }
@@ -107,6 +126,8 @@ function bindStandardLogic({ cfg, products }) {
         onInc({ id: vId, price: vPrice, image: vImg }); 
       });
     });
+    // Sync card UI on load/tab switch
+    updateCard(true);
   });
   const resetBtn = document.getElementById('cdo-reset-btn'); const checkoutBtn = document.getElementById('cdo-checkout-btn'); const previewATC = document.getElementById('cdo-preview-atc-btn');
   if (resetBtn) resetBtn.addEventListener('click', () => { Object.keys(selected).forEach(k => delete selected[k]); document.querySelectorAll('.cdo-card').forEach(c => { const qty = 0; const qtyEl = c.querySelector('.cdo-qty-value'); if (qtyEl) qtyEl.value = 0; c.style.border = `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; const addBtn = c.querySelector('.cdo-add-btn'); if (addBtn) addBtn.textContent = cfg.add_btn_text || cfg.product_add_btn_text || 'Add'; const tick = c.querySelector('.cdo-tick'); if (tick) tick.classList.remove('visible'); }); updateAll(); });
@@ -121,6 +142,7 @@ function bindStandardLogic({ cfg, products }) {
 
 /* ===================== MAIN BOOTSTRAP ===================== */
 document.addEventListener('DOMContentLoaded', async function() {
+  window.comboSelected = {}; // Reset state on fresh page load
   const shopDomain = (window.Shopify && window.Shopify.shop) ? window.Shopify.shop : window.location.hostname;
   const root = document.getElementById('combo-builder-root');
   if (!root) return;

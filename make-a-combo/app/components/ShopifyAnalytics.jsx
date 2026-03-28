@@ -16,6 +16,8 @@ import {
   IndexTable,
   Badge,
   EmptyState,
+  Modal,
+  useBreakpoints,
 } from '@shopify/polaris';
 import {
   CalendarIcon,
@@ -44,6 +46,7 @@ import { useFetcher } from '@remix-run/react';
 // --- Dashboard Component ---
 export function ShopifyAnalytics({ initialData }) {
   const fetcher = useFetcher();
+  const { smUp } = useBreakpoints();
   const [data, setData] = useState(initialData || { totalVisitors: 0, totalClicks: 0, checkoutClicks: 0, discountUsage: 0, discountList: [], topTemplate: 'None', byTemplate: [], chartData: [] });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,10 +71,10 @@ export function ShopifyAnalytics({ initialData }) {
   };
 
   // Filter States
-  const [datePopover, setDatePopover] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState('Last 30 days');
   const [pendingDates, setPendingDates] = useState({
-    start: normalizeToNoon(new Date(new Date().setDate(new Date().getDate() - 30))),
+    start: normalizeToNoon(new Date(new Date().setDate(new Date().getDate() - 29))),
     end: normalizeToNoon(new Date()),
   });
   const [activeDates, setActiveDates] = useState(pendingDates);
@@ -118,28 +121,27 @@ export function ShopifyAnalytics({ initialData }) {
   const handleApply = () => {
     setActiveDates(pendingDates);
     activeDatesRef.current = pendingDates;
-    setDatePopover(false);
+    setIsModalOpen(false);
     handleRefresh();
   };
 
   const setPreset = (preset, days) => {
-    // Polaris DatePicker often emits an onChange during internal state sync
-    // when we programmatically change `selected`. Ignore the next event so
-    // the preset range doesn't get overwritten.
     ignoreNextDatePickerOnChangeRef.current = true;
     setSelectedPreset(preset);
     const start = new Date();
     // `days` is inclusive (Last 7 days => today + 6 previous days).
-    // For Today (days=0), keep start == today.
     const daysBack = days > 0 ? days - 1 : 0;
     start.setDate(start.getDate() - daysBack);
     const range = { start: normalizeToNoon(start), end: normalizeToNoon(new Date()) };
+    
     setPendingDates(range);
-    // Keep `activeDates` in sync immediately so Refresh uses the latest selection,
-    // even if the user doesn't click "Apply".
     setActiveDates(range);
     activeDatesRef.current = range;
     setDateView({ month: start.getMonth(), year: start.getFullYear() });
+
+    // Presets apply immediately and close the modal
+    handleRefresh();
+    setIsModalOpen(false);
   };
 
   return (
@@ -155,24 +157,64 @@ export function ShopifyAnalytics({ initialData }) {
               <Text variant="headingMd" as="h2">App Analytics</Text>
             </InlineStack>
             <InlineStack gap="200">
-              <Popover
-                active={datePopover}
-                activator={<Button icon={CalendarIcon} onClick={() => setDatePopover(!datePopover)} disclosure>{selectedPreset}</Button>}
-                onClose={() => setDatePopover(false)}
+              <Button 
+                icon={CalendarIcon} 
+                onClick={() => setIsModalOpen(true)} 
+                disclosure
               >
-                <Box width="600px">
-                  <InlineStack wrap={false}>
-                    <Box width="160px" borderInlineEndWidth="1px" borderColor="border-subdued">
+                {selectedPreset}
+              </Button>
+
+              <Modal
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title="Select date range"
+                size="large"
+                primaryAction={{
+                  content: 'Apply',
+                  onAction: handleApply,
+                }}
+                secondaryActions={[
+                  {
+                    content: 'Cancel',
+                    onAction: () => setIsModalOpen(false),
+                  },
+                ]}
+              >
+                <Modal.Section padding="0">
+                  <div style={{ display: 'flex', flexDirection: smUp ? 'row' : 'column' }}>
+                    <Box 
+                      width={smUp ? '160px' : '100%'} 
+                      borderInlineEndWidth={smUp ? "1px" : "0"} 
+                      borderBlockEndWidth={smUp ? "0" : "1px"} 
+                      borderColor="border-subdued"
+                    >
                       <ActionList
                         items={[
-                          { content: 'Today', onClick: () => setPreset('Today', 0) },
-                          { content: 'Last 7 days', onClick: () => setPreset('Last 7 days', 7) },
-                          { content: 'Last 30 days', onClick: () => setPreset('Last 30 days', 30) },
-                          { content: 'Custom' },
+                          { 
+                            content: 'Today', 
+                            active: selectedPreset === 'Today',
+                            onAction: () => setPreset('Today', 0) 
+                          },
+                          { 
+                            content: 'Last 7 days', 
+                            active: selectedPreset === 'Last 7 days',
+                            onAction: () => setPreset('Last 7 days', 7) 
+                          },
+                          { 
+                            content: 'Last 30 days', 
+                            active: selectedPreset === 'Last 30 days',
+                            onAction: () => setPreset('Last 30 days', 30) 
+                          },
+                          { 
+                            content: 'Custom',
+                            active: selectedPreset === 'Custom',
+                            onAction: () => setSelectedPreset('Custom')
+                          },
                         ]}
                       />
                     </Box>
-                    <Box padding="400">
+                    <Box padding="400" width="100%">
                       <BlockStack gap="400">
                         <DatePicker
                           month={month} year={year}
@@ -186,9 +228,6 @@ export function ShopifyAnalytics({ initialData }) {
                               end: normalizeToNoon(dates?.end),
                             };
                             setPendingDates(nextRange);
-                            // Polaris may emit partial ranges while selecting.
-                            // Keep previously-known start/end so a 22-26 selection
-                            // doesn't collapse into 26-26.
                             const prev = activeDatesRef.current;
                             const updated = {
                               start: nextRange.start ?? prev?.start ?? null,
@@ -200,17 +239,14 @@ export function ShopifyAnalytics({ initialData }) {
                           }}
                           onMonthChange={(m, y) => setDateView({ month: m, year: y })}
                           selected={pendingDates}
-                          multiMonth allowRange
+                          multiMonth={smUp} allowRange
                         />
-                        <InlineStack align="end" gap="200">
-                          <Button onClick={() => setDatePopover(false)}>Cancel</Button>
-                          <Button variant="primary" onClick={handleApply}>Apply</Button>
-                        </InlineStack>
                       </BlockStack>
                     </Box>
-                  </InlineStack>
-                </Box>
-              </Popover>
+                  </div>
+                </Modal.Section>
+              </Modal>
+              
               <Button icon={RefreshIcon} onClick={handleRefresh} loading={isLoading} />
             </InlineStack>
           </InlineStack>
@@ -339,21 +375,15 @@ export function ShopifyAnalytics({ initialData }) {
                           <Box key={idx} padding="200" background="bg-surface-secondary" borderRadius="200">
                             <BlockStack gap="100">
                               <InlineStack align="space-between" blockAlign="center">
-                                <Text variant="bodySm" fontWeight="bold" truncate>{d.title}</Text>
-                                <Badge tone={d.status === 'active' ? 'success' : 'subdued'}>{d.status}</Badge>
-                              </InlineStack>
-                              <InlineStack align="space-between">
-                                <Text variant="bodySm" tone="subdued">
-                                  {d.code ? d.code : (d.valueType === 'percentage' ? `${d.value}% off` : `$${d.value} off`)}
-                                </Text>
-                                <Text variant="bodySm" tone="subdued">Used: {d.usage}</Text>
+                                <Text variant="bodySm" fontWeight="bold" truncate>{d.discount_name}</Text>
+                                <Text variant="bodySm" tone="subdued">Used: {d.usage_count}</Text>
                               </InlineStack>
                             </BlockStack>
                           </Box>
                         ))}
                       </BlockStack>
                     ) : (
-                      <Text variant="bodySm" tone="subdued">No discounts found</Text>
+                      <Text variant="bodySm" tone="subdued">There is no discount used</Text>
                     )}
                   </BlockStack>
                 </Card>

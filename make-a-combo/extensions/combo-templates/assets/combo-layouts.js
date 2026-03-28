@@ -49,7 +49,8 @@ function renderLayout1(cfg, products, root) {
 }
 
 function bindLayout1Logic(cfg, products) {
-  const selected   = {};
+  if (!window.comboSelected) window.comboSelected = {};
+  const selected   = window.comboSelected;
   const maxTotal   = parseInt(cfg.max_products) || 5;
   const discountPc = parseFloat(cfg.discount_percentage) || 0;
   const limitMsg   = (cfg.limit_reached_message || 'Limit reached! You can only select __LIMIT__ items.').replace(/\{\{limit\}\}|__LIMIT__/g, maxTotal);
@@ -70,6 +71,9 @@ function bindLayout1Logic(cfg, products) {
       let variantId = String(i.id || '').trim();
       const cardId = String(i.cardId || '').trim();
       const qty = parseInt(i.qty, 10) || 0;
+      if (!/^[0-9]+$/.test(variantId)) {
+        variantId = normalizeVariantId(variantId);
+      }
       if (!/^[0-9]+$/.test(variantId)) {
         const product = getProductByCardId(cardId);
         if (product && Array.isArray(product.variants) && product.variants.length > 0) { variantId = normalizeVariantId(product.variants[0].id); }
@@ -143,7 +147,11 @@ function bindLayout1Logic(cfg, products) {
       if (getTotalQty() >= maxTotal) { showToast(limitMsg); return; }
       if (stepLimit && getStepQty(step) >= stepLimit) { showToast(`Max ${stepLimit} item(s) from this category.`); return; }
       const displayMode = cfg.product_card_variants_display || 'static';
-      if (overrideVariant) {
+
+      // Fix: Check if overrideVariant is a real variant object (has id and is not an Event)
+      const isOverride = overrideVariant && typeof overrideVariant === 'object' && !overrideVariant.preventDefault && overrideVariant.id;
+
+      if (isOverride) {
         let key = String(overrideVariant.id || '').trim(); const vPrice = toSafeNumber(overrideVariant.price, price); const vImage = toSafeImage(overrideVariant.image) || image;
         if (!/^\d+$/.test(key)) { const fallbackVariant = product && (product.variants || []).length > 0 ? normalizeVariantId(product.variants[0].id) : ''; key = fallbackVariant; }
         if (!/^\d+$/.test(key)) { showToast('Please select a valid variant.'); return; }
@@ -190,6 +198,8 @@ function bindLayout1Logic(cfg, products) {
         onInc({ id: vId, price: vPrice, image: vImg }); 
       });
     });
+    // Initialize card visuals on load
+    updateCardVisuals(card, id);
   });
   const resetBtn = document.getElementById('cdo-reset-btn'); const checkoutBtn = document.getElementById('cdo-checkout-btn'); const previewATC = document.getElementById('cdo-preview-atc-btn');
   if (resetBtn) resetBtn.addEventListener('click', () => { Object.keys(selected).forEach(k => delete selected[k]); document.querySelectorAll('.cdo-card').forEach(c => { const qty = 0; const qtyEl = c.querySelector('.cdo-qty-value'); if (qtyEl) qtyEl.value = 0; c.style.border = `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; const addBtn = c.querySelector('.cdo-add-btn'); if (addBtn) addBtn.textContent = cfg.add_btn_text || cfg.product_add_btn_text || 'Add'; const tick = c.querySelector('.cdo-tick'); if (tick) tick.classList.remove('visible'); }); updateTotals(); });
@@ -227,10 +237,20 @@ function renderLayout2(cfg, products, root, template) {
   function setTabVisualState(nextHandle, shouldFocus) { const allTabs = Array.from(root.querySelectorAll('.cdo-tab')); allTabs.forEach(tab => { const isActive = tab.dataset.handle === nextHandle; tab.style.background = isActive ? (cfg.tab_active_bg_color || '#000') : (cfg.tab_bg_color || '#eee'); tab.style.color = isActive ? (cfg.tab_active_text_color || '#fff') : (cfg.tab_text_color || '#333'); tab.setAttribute('aria-selected', isActive ? 'true' : 'false'); tab.tabIndex = isActive ? 0 : -1; if (isActive) { if (shouldFocus) tab.focus(); tab.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } }); if (panel) { panel.setAttribute('aria-labelledby', `cdo-tab-${nextHandle}`); } }
   function readLocalCollection(handle) { if (handle === 'all') return visibleProducts; return visibleProducts.filter(p => p.collection_handle === handle); }
   async function renderTabProducts(handle) {
-    const requestId = ++requestSerial; const grid = document.getElementById('cdo-products-grid'); if (!grid) return; activeHandle = handle; setTabVisualState(handle, false); if (productsCache.has(handle)) { const cachedList = productsCache.get(handle) || []; grid.classList.remove('is-loading'); grid.innerHTML = cachedList.length? cachedList.map(p => renderProductCard(cfg, p)).join(''): `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#888;font-size:14px;">No products found.</div>`; if (cachedList.length) bindStandardLogic({ cfg, products: cachedList }); return; }
+    const requestId = ++requestSerial; const grid = document.getElementById('cdo-products-grid'); if (!grid) return; activeHandle = handle; setTabVisualState(handle, false);    if (productsCache.has(handle)) { 
+      const cachedList = productsCache.get(handle) || []; 
+      grid.classList.remove('is-loading'); 
+      grid.innerHTML = cachedList.length ? cachedList.map(p => renderProductCard(cfg, p)).join('') : `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#888;font-size:14px;">No products found.</div>`; 
+      if (cachedList.length) bindStandardLogic({ cfg, products: products }); 
+      return; 
+    }
     if (pendingController) pendingController.abort(); pendingController = new AbortController(); grid.classList.add('is-loading'); renderGridState(getSkeletonHtml());
     let list; try { list = readLocalCollection(handle); if (handle !== 'all' && !list.length) { list = await fetchStorefrontProducts(handle, pendingController.signal); } list = filterProductsByStock(list, cfg); productsCache.set(handle, list); } catch (err) { if (err && err.name === 'AbortError') return; if (requestId !== requestSerial || activeHandle !== handle) return; grid.classList.remove('is-loading'); grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#b42318;font-size:14px;">Unable to load products. Please try again.</div>`; return; }
-    if (requestId !== requestSerial || activeHandle !== handle) return; grid.classList.remove('is-loading'); grid.innerHTML = list.length? list.map(p => renderProductCard(cfg, p)).join(''): `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#888;font-size:14px;">No products found.</div>`; if (list.length) bindStandardLogic({ cfg, products: list }); trackVisit(rootName + '__tab__' + handle);
+    if (requestId !== requestSerial || activeHandle !== handle) return; 
+    grid.classList.remove('is-loading'); 
+    grid.innerHTML = list.length ? list.map(p => renderProductCard(cfg, p)).join('') : `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#888;font-size:14px;">No products found.</div>`; 
+    if (list.length) bindStandardLogic({ cfg, products: products }); 
+    trackVisit(rootName + '__tab__' + handle);
   }
   const tabElements = Array.from(root.querySelectorAll('.cdo-tab')); const tabsViewportEl = root.querySelector('.cdo-tabs-viewport');
   root.querySelectorAll('.cdo-tabs-arrow').forEach(btn => { btn.addEventListener('click', () => { if (!tabsViewportEl) return; const delta = btn.dataset.dir === 'prev' ? -220 : 220; tabsViewportEl.scrollBy({ left: delta, behavior: 'smooth' }); }); });
@@ -252,7 +272,13 @@ function renderLayout3(cfg, products, root, template) {
   const gap = isMobile ? (cfg.products_gap_mobile || 10) : (cfg.products_gap || 16);
   root.innerHTML = `<div style="max-width:${cfg.container_width||1200}px;margin:0 auto;background:${cfg.bg_color||'#fff'};color:${cfg.text_color||'#000'};box-sizing:border-box;">${getProgressHtml(cfg)}<div style="padding:${padT}px ${padR}px ${padB}px ${padL}px;">${getBannerHtml(cfg)}${heroHtml}${getTitleHtml(cfg)}<div style="display:flex;gap:10px;margin:16px 0;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;">${catPillsHtml}</div><div class="${cfg.grid_layout_type === 'slider' ? 'cdo-layout-slider-container' : ''}">${cfg.grid_layout_type === 'slider' ? `<button class="cdo-nav-btn prev" onclick="this.parentNode.querySelector('.cdo-layout-slider').scrollBy({left:-300,behavior:'smooth'})">←</button><button class="cdo-nav-btn next" onclick="this.parentNode.querySelector('.cdo-layout-slider').scrollBy({left:300,behavior:'smooth'})">→</button>` : ''}<div id="cdo-products-grid" class="${cfg.grid_layout_type === 'slider' ? 'cdo-layout-slider' : ''}" style="${cfg.grid_layout_type === 'slider' ? `width:100%;margin-top:20px;` : `width:100%;margin-top:20px;display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${gap}px;`}"></div></div></div>${getPreviewBarHtml(cfg)}</div>`;
   initBannerSlider(cfg); if (cfg.show_hero && cfg.timer_hours !== undefined) { let total = (parseInt(cfg.timer_hours)||0)*3600 + (parseInt(cfg.timer_minutes)||0)*60 + (parseInt(cfg.timer_seconds)||0); const pad = n => String(n).padStart(2,'0'); const tick = () => { if (total <= 0) { if (cfg.auto_reset_timer) { total = (parseInt(cfg.timer_hours)||0)*3600 + (parseInt(cfg.timer_minutes)||0)*60 + (parseInt(cfg.timer_seconds)||0); } else return; } total--; const h = Math.floor(total/3600), m = Math.floor((total%3600)/60), s = total%60; const hEl = document.getElementById('t-h'), mEl = document.getElementById('t-m'), sEl = document.getElementById('t-s'); if (hEl) hEl.textContent = pad(h); if (mEl) mEl.textContent = pad(m); if (sEl) sEl.textContent = pad(s); }; tick(); setInterval(tick, 1000); }
-  function renderCatProducts(handle) { const grid = document.getElementById('cdo-products-grid'); if (!grid) return; const filtered = handle === 'all' ? visibleProducts : visibleProducts.filter(p => p.collection_handle === handle); grid.innerHTML = filtered.map(p => renderProductCard(cfg, p)).join(''); bindStandardLogic({ cfg, products: filtered }); }
+  function renderCatProducts(handle) { 
+    const grid = document.getElementById('cdo-products-grid'); 
+    if (!grid) return; 
+    const filtered = handle === 'all' ? visibleProducts : visibleProducts.filter(p => p.collection_handle === handle); 
+    grid.innerHTML = filtered.map(p => renderProductCard(cfg, p)).join(''); 
+    bindStandardLogic({ cfg, products: visibleProducts }); 
+  }
   root.querySelectorAll('.cdo-cat-pill').forEach(btn => { btn.addEventListener('click', () => { root.querySelectorAll('.cdo-cat-pill').forEach(b => { b.style.background = '#eee'; b.style.color = '#333'; }); btn.style.background = primary; btn.style.color = '#fff'; renderCatProducts(btn.dataset.handle); }); });
   renderCatProducts('all');
 }

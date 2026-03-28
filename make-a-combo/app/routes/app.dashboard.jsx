@@ -179,7 +179,7 @@ export const loader = async ({ request }) => {
     .split('T')[0];
 
   console.log(`[Dashboard] Fetching analytics for ${shop} (${start} to ${end})`);
-  
+
   const [analyticsData, shopifyDiscounts] = await Promise.all([
     getAnalytics(shop, start, end).then(d => d || {
       totalVisitors: 0,
@@ -194,9 +194,20 @@ export const loader = async ({ request }) => {
     getShopifyDiscounts(admin),
   ]);
 
-  if (shopifyDiscounts.length > 0) {
-    analyticsData.discountList = shopifyDiscounts;
+  const appliedDiscounts = (shopifyDiscounts || [])
+    .filter(d => d.usedCount > 0 && d.status === 'active')
+    .map(d => ({
+      discount_name: d.code || d.title,
+      usage_count: d.usedCount
+    }))
+    .sort((a, b) => b.usage_count - a.usage_count)
+    .slice(0, 5);
+
+  analyticsData.discountList = appliedDiscounts;
+  if (shopifyDiscounts && shopifyDiscounts.length > 0) {
     analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
+  } else {
+    analyticsData.discountList = [];
   }
 
   return json({ layoutFiles, shopName, isEnabled, analyticsData });
