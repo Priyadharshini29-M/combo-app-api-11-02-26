@@ -321,26 +321,46 @@ function ComboPreview({ config, device }) {
     </div>
   );
 
+  // CSS for Hover Effect in Preview
+  const hoverStyles = `
+    .combo-product-card { position: relative; overflow: hidden; }
+    .combo-image-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .combo-primary-img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s ease, transform 0.3s ease; }
+    .combo-hover-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; background: rgba(255, 255, 255, 0.95); display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; text-align: center; }
+    .combo-secondary-img { width: 100%; height: 100%; object-fit: cover; }
+    .combo-hover-desc { font-size: 13px; color: #333; line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+    .has-hover-effect:hover .combo-primary-img { opacity: 0; transform: scale(1.05); }
+    .has-hover-effect:hover .combo-hover-content { opacity: 1; visibility: visible; }
+  `;
+
   // Mock products for preview to avoid authentication issues in standard iframe
   const shopifyProducts = [
     {
       id: '1',
       title: 'Snowboard',
+      secondImageSrc: 'https://placehold.co/400x400/222/fff?text=Hover+Image',
+      descriptionHtml: '<p>Premium responsive snowboard tailored for all-mountain conditions. Get ready for winter.</p>',
       variants: [{ id: '1', title: 'Default', price: '100.00' }],
     },
     {
       id: '2',
       title: 'Ski Goggles',
+      secondImageSrc: 'https://placehold.co/400x400/444/fff?text=Hover+Goggles',
+      descriptionHtml: '<p>Anti-fog lenses with 100% UV protection.</p>',
       variants: [{ id: '2', title: 'Blue', price: '50.00' }],
     },
     {
       id: '3',
       title: 'Winter Hat',
+      secondImageSrc: 'https://placehold.co/400x400/666/fff?text=Hover+Hat',
+      descriptionHtml: '<p>Warm, fleeced inner layer.</p>',
       variants: [{ id: '3', title: 'Red', price: '25.00' }],
     },
     {
       id: '4',
       title: 'Gloves',
+      secondImageSrc: 'https://placehold.co/400x400/888/fff?text=Hover+Gloves',
+      descriptionHtml: '<p>Waterproof and insulated to -20 degrees.</p>',
       variants: [{ id: '4', title: 'L', price: '30.00' }],
     },
   ];
@@ -377,16 +397,21 @@ function ComboPreview({ config, device }) {
         const selectedVariant =
           (product.variants || []).find((v) => v.id === selectedVariantId) ||
           (product.variants && product.variants[0]);
+
+        const hasHoverEffect = config.enable_product_hover && (
+          (config.product_hover_mode === 'second_image' && product.secondImageSrc) ||
+          (config.product_hover_mode === 'description' && product.descriptionHtml)
+        );
         return (
           <div
             key={product.id}
+            className={`combo-product-card ${hasHoverEffect ? 'has-hover-effect' : ''}`}
             style={{
               border: '2px solid #eee',
               borderRadius: config.card_border_radius,
               overflow: 'hidden',
               background: 'white',
               width: '100%',
-
               margin: 0,
               boxSizing: 'border-box',
               display: 'flex',
@@ -399,18 +424,27 @@ function ComboPreview({ config, device }) {
                 width: '100%',
                 height: productImageHeight,
                 background: '#f5f5f5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 borderRadius: 8,
                 border: '1.5px dashed #bbb',
                 marginBottom: 8,
+                position: 'relative',
                 overflow: 'hidden',
               }}
             >
-              <span style={{ color: '#bbb', fontWeight: 500, fontSize: 13 }}>
-                Product Image
-              </span>
+              <div className="combo-image-container">
+                <div style={{ color: '#bbb', fontWeight: 500, fontSize: 13 }} className="combo-primary-img cdo-skeleton-img-placeholder">
+                   <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%'}}>Product Image</div>
+                </div>
+                {hasHoverEffect && (
+                  <div className="combo-hover-content">
+                    {config.product_hover_mode === 'second_image' && product.secondImageSrc ? (
+                      <img src={product.secondImageSrc} className="combo-secondary-img" alt="Hover view" />
+                    ) : config.product_hover_mode === 'description' && product.descriptionHtml ? (
+                      <div className="combo-hover-desc" dangerouslySetInnerHTML={{ __html: product.descriptionHtml }} />
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ padding: 10 }}>
               <div
@@ -603,6 +637,7 @@ function ComboPreview({ config, device }) {
 
   return (
     <div style={{ background: '#eef1f5', padding: 0, minHeight: '100vh' }}>
+      <style>{hoverStyles}</style>
       <div
         style={{
           fontFamily:

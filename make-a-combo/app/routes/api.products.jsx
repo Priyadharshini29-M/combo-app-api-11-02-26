@@ -26,6 +26,12 @@ export const loader = async ({ request }) => {
                   handle
                   vendor
                   totalInventory
+                  descriptionHtml
+                  images(first: 2) {
+                    nodes {
+                      url
+                    }
+                  }
                   featuredMedia {
                     preview {
                       image {
@@ -59,6 +65,8 @@ export const loader = async ({ request }) => {
             title: p.title,
             handle: p.handle,
             vendor: p.vendor,
+            descriptionHtml: p.descriptionHtml,
+            secondImageSrc: p.images?.nodes?.length > 1 ? p.images.nodes[1].url : null,
             totalInventory: p.totalInventory,
             available: Number(p.totalInventory || 0) > 0,
             image: p.featuredMedia?.preview?.image
@@ -92,6 +100,12 @@ export const loader = async ({ request }) => {
               title
               handle
               totalInventory
+              descriptionHtml
+              images(first: 2) {
+                nodes {
+                  url
+                }
+              }
               featuredMedia {
                 preview {
                   image {
@@ -124,6 +138,9 @@ export const loader = async ({ request }) => {
       const formattedProducts = products.map((p) => ({
         id: p.id,
         title: p.title,
+        handle: p.handle,
+        descriptionHtml: p.descriptionHtml,
+        secondImageSrc: p.images?.nodes?.length > 1 ? p.images.nodes[1].url : null,
         totalInventory: p.totalInventory,
         available: Number(p.totalInventory || 0) > 0,
         image: p.featuredMedia?.preview?.image

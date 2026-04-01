@@ -321,9 +321,60 @@ export async function getShopifyDiscounts(admin) {
 }
 
 /**
+ * Fetch orders within a date range from Shopify GraphQL.
+ * Returns { ordersCount: number, totalRevenue: number }
+ */
+export async function getShopifyOrders(admin, start, end) {
+  try {
+    // Shopify orders query with created_at filter.
+    const startTime = start ? new Date(start.replace(' ', 'T') + 'Z').toISOString() : null;
+    const endTime = end ? new Date(end.replace(' ', 'T') + 'Z').toISOString() : new Date().toISOString();
+    
+    let query = `financial_status:paid`;
+    if (startTime) query += ` AND created_at:>=${startTime}`;
+    if (endTime) query += ` AND created_at:<=${endTime}`;
+
+    const res = await admin.graphql(`
+      #graphql
+      query getOrders($query: String!) {
+        shop {
+          currencyCode
+        }
+        orders(first: 100, query: $query) {
+          edges {
+            node {
+              id
+              totalPriceSet {
+                shopMoney {
+                  amount
+                }
+              }
+            }
+          }
+        }
+      }
+    `, {
+      variables: { query }
+    });
+
+    const json = await res.json();
+    const currencyCode = json.data?.shop?.currencyCode || 'USD';
+    const edges = json.data?.orders?.edges || [];
+    
+    const ordersCount = edges.length;
+    const totalRevenue = edges.reduce((acc, { node }) => acc + parseFloat(node.totalPriceSet.shopMoney.amount), 0);
+
+    return { ordersCount, totalRevenue, currencyCode };
+  } catch (e) {
+    console.error('[API] ❌ getShopifyOrders failed:', e.message);
+    return { ordersCount: 0, totalRevenue: 0, currencyCode: 'USD' };
+  }
+}
+
+/**
  * Unified Analytics Fetcher (Uses analytics.php)
  */
-export async function getAnalytics(shop, start, end, dateRange) {
+export async function getAnalytics(shop, start, end, dateRange, admin = null) {
   const url = new URL(`${BASE_PHP_URL}/analytics.php`);
   url.searchParams.set('shop_domain', shop);
 
@@ -343,13 +394,20 @@ export async function getAnalytics(shop, start, end, dateRange) {
   console.log(`[API] 📊 Fetching Unified Analytics: ${url.toString()}`);
 
   try {
-    // Fetch analytics and active discounts in parallel
-    const [response, discountRes] = await Promise.all([
+    // Fetch analytics, active discounts, and orders in parallel
+    const queries = [
       fetch(url.toString()),
       fetch(`${BASE_PHP_URL}/discount.php?shopdomain=${shop}&shop=${shop}`)
         .then(r => r.json())
         .catch(() => ({ data: [] })),
-    ]);
+    ];
+    
+    // Add Shopify orders fetch if admin is provided
+    if (admin) {
+      queries.push(getShopifyOrders(admin, start, end));
+    }
+
+    const [response, discountRes, shopifyOrders] = await Promise.all(queries);
 
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
@@ -376,15 +434,13 @@ export async function getAnalytics(shop, start, end, dateRange) {
         valueType: flat.valueType || 'percentage',
       };
     });
-    const activeDiscountCount = normalizedDiscounts.filter(d => d.status === 'active').length;
+    const activeDiscountCount =
+      normalizedDiscounts.filter((d) => d.status === 'active').length;
     console.log(`[API] 🏷️ Active discounts for ${shop}: ${activeDiscountCount}`);
 
     // Normalize template names
     const normalize = (name) =>
-      (name || "")
-        .toLowerCase()
-        .replace(/[-_]/g, " ")
-        .trim();
+      (name || '').toLowerCase().replace(/[-_]/g, ' ').trim();
 
     // Merge duplicate templates
     const templateMap = {};
@@ -406,18 +462,16 @@ export async function getAnalytics(shop, start, end, dateRange) {
 
     const byTemplate = Object.values(templateMap).map((t) => {
       const convRate =
-        t.visitors > 0
-          ? ((t.clicks / t.visitors) * 100).toFixed(1)
-          : "0.0";
+        t.visitors > 0 ? ((t.clicks / t.visitors) * 100).toFixed(1) : '0.0';
       return {
         ...t,
-        conversionRate: convRate + "%",
+        conversionRate: convRate + '%',
       };
     });
 
     // Top template logic:
     // Prefer PHP's own ordering (`top_templates[0]`) so UI/API "top" matches the backend.
-    let topTemplate = "None";
+    let topTemplate = 'None';
     if (phpData.top_templates && phpData.top_templates.length > 0) {
       topTemplate = normalize(phpData.top_templates[0].template_name);
     } else if (byTemplate.length > 0) {
@@ -426,7 +480,7 @@ export async function getAnalytics(shop, start, end, dateRange) {
         if (b.clicks === a.clicks) return b.visitors - a.visitors;
         return b.clicks - a.clicks;
       });
-      topTemplate = sorted[0]?.name || "None";
+      topTemplate = sorted[0]?.name || 'None';
     }
 
     // Chart fallback
@@ -434,23 +488,39 @@ export async function getAnalytics(shop, start, end, dateRange) {
       phpData.chart_data && phpData.chart_data.length > 0
         ? phpData.chart_data
         : byTemplate.map((t) => ({
-          date: t.name,
-          clicks: t.clicks,
-        }));
+            date: t.name,
+            clicks: t.clicks,
+          }));
+
+    const totalVisitors = Number(phpData.total_visitors || 0);
+    const totalRevenue = shopifyOrders?.totalRevenue || 0;
+    const totalOrders = shopifyOrders?.ordersCount || 0;
+    const currencyCode = shopifyOrders?.currencyCode || 'USD';
 
     return {
-      totalVisitors: Number(phpData.total_visitors || 0),
+      totalVisitors,
       totalClicks: Number(phpData.total_clicks || 0),
       checkoutClicks: Number(phpData.total_checkouts || 0),
-      discountUsage: activeDiscountCount > 0 ? activeDiscountCount : Number(phpData.total_discounts || 0),
+      discountUsage:
+        activeDiscountCount > 0
+          ? activeDiscountCount
+          : Number(phpData.total_discounts || 0),
       discountList: normalizedDiscounts,
+      totalRevenue,
+      totalOrders,
+      currencyCode,
+      aov: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+      orderConversionRate:
+        totalVisitors > 0 ? (totalOrders / totalVisitors) * 100 : 0,
       topTemplate: topTemplate,
       byTemplate: byTemplate,
       chartData: chartData,
     };
   } catch (error) {
-    console.error("[API] ❌ Error fetching unified analytics:", error);
+    console.error('[API] ❌ Error fetching unified analytics:', error);
     return null;
   }
 }
+
+
 

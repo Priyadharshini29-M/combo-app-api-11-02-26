@@ -1,12 +1,23 @@
-import { useState } from 'react';
-import { useLoaderData, Link } from '@remix-run/react';
+import { useEffect, useState } from 'react';
+import {
+  useLoaderData,
+  Link,
+  useFetcher,
+  useRevalidator,
+} from '@remix-run/react';
 import { json } from '@remix-run/node';
 import fs from 'fs';
 import path from 'path';
 import { authenticate } from '../shopify.server';
-import { getVisitors, getClicks, transformAnalytics, BASE_PHP_URL, sendToPhp, getAnalytics, getShopifyDiscounts } from '../utils/api-helpers';
+import {
+  BASE_PHP_URL,
+  sendToPhp,
+  getAnalytics,
+  getShopifyDiscounts,
+} from '../utils/api-helpers';
 import { EnableThemeButton } from '../components/EnableThemeButton';
 import { ShopifyAnalytics } from '../components/ShopifyAnalytics';
+import { readAppEmbedState } from '../utils/app-embed.server';
 
 import {
   Page,
@@ -21,8 +32,6 @@ import {
   Divider,
 } from '@shopify/polaris';
 import { HomeIcon } from '@shopify/polaris-icons';
-
-const EXTENSION_UUID = '9be6ff79-377e-fec3-de20-e5290c5b53fd07498442';
 
 // Loader: check real Shopify theme embed status → save to DB → return result
 export const loader = async ({ request }) => {
@@ -52,61 +61,13 @@ export const loader = async ({ request }) => {
       shopJson.data?.currentAppInstallation?.activeSubscriptions || [];
     const appPlan = subscriptions.length > 0 ? subscriptions[0].name : 'Free';
 
-    if (activeTheme) {
-      const themeId = activeTheme.id.split('/').pop();
-
-      // 2. Read settings_data.json via direct Shopify REST call using session access token
-      try {
-        const assetUrl = `https://${shop}/admin/api/2025-01/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`;
-        const assetRes = await fetch(assetUrl, {
-          headers: {
-            'X-Shopify-Access-Token': session.accessToken,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (assetRes.ok) {
-          const assetBody = await assetRes.json();
-          const assetValue = assetBody.asset?.value;
-
-          if (assetValue) {
-            const settingsData = JSON.parse(assetValue);
-            const blocks = settingsData.current?.blocks || {};
-
-            console.log(
-              '[Dashboard] All theme blocks:',
-              Object.entries(blocks).map(([k, b]) => ({
-                key: k,
-                type: b.type,
-                disabled: b.disabled,
-              }))
-            );
-
-            const matchedKey = Object.keys(blocks).find((key) => {
-              const type = blocks[key].type || '';
-              return (
-                type.includes(EXTENSION_UUID) ||
-                type.includes('combo_builder') ||
-                type.includes('combo_global') ||
-                type.includes('combo-global')
-              );
-            });
-
-            if (matchedKey) {
-              isEnabled = blocks[matchedKey].disabled !== true;
-              console.log(`[Dashboard] Matched block "${matchedKey}", disabled=${blocks[matchedKey].disabled}, isEnabled=${isEnabled}`);
-            } else {
-              isEnabled = false;
-              console.log('[Dashboard] No matching block found in theme. Block types present:', Object.values(blocks).map(b => b.type));
-            }
-          }
-        } else {
-          console.error('[Dashboard] Asset fetch failed:', assetRes.status, await assetRes.text());
-        }
-      } catch (assetErr) {
-        console.error('[Dashboard] Asset fetch error:', assetErr.message);
-      }
-    }
+    // 2. Read actual App Embed status from active theme asset
+    const embedState = await readAppEmbedState({
+      admin,
+      session,
+      blockHints: ['combo_builder', 'combo-builder', 'combo builder'],
+    });
+    isEnabled = embedState.isEnabled === true;
 
     console.log(
       `[Dashboard] Shopify embed status for ${shop}: ${isEnabled ? 'enabled' : 'disabled'}`
@@ -174,113 +135,91 @@ export const loader = async ({ request }) => {
   const endParam = url.searchParams.get('end');
 
   const end = endParam || new Date().toISOString().split('T')[0];
-  const start = startParam || new Date(new Date().setDate(new Date().getDate() - 30))
-    .toISOString()
-    .split('T')[0];
+  const start =
+    startParam ||
+    new Date(new Date().setDate(new Date().getDate() - 30))
+      .toISOString()
+      .split('T')[0];
 
-  console.log(`[Dashboard] Fetching analytics for ${shop} (${start} to ${end})`);
+  console.log(
+    `[Dashboard] Fetching analytics for ${shop} (${start} to ${end})`
+  );
 
   const [analyticsData, shopifyDiscounts] = await Promise.all([
-    getAnalytics(shop, start, end).then(d => d || {
-      totalVisitors: 0,
-      totalClicks: 0,
-      checkoutClicks: 0,
-      discountUsage: 0,
-      discountList: [],
-      topTemplate: 'None',
-      byTemplate: [],
-      chartData: [],
-    }),
+    getAnalytics(shop, start, end, null, admin).then(
+      (d) =>
+        d || {
+          totalVisitors: 0,
+          totalClicks: 0,
+          checkoutClicks: 0,
+          discountUsage: 0,
+          discountList: [],
+          topTemplate: 'None',
+          byTemplate: [],
+          chartData: [],
+          totalRevenue: 0,
+          totalOrders: 0,
+          aov: 0,
+          orderConversionRate: 0,
+        }
+    ),
     getShopifyDiscounts(admin),
   ]);
 
   const appliedDiscounts = (shopifyDiscounts || [])
-    .filter(d => d.usedCount > 0 && d.status === 'active')
-    .map(d => ({
+    .filter((d) => d.usedCount > 0 && d.status === 'active')
+    .map((d) => ({
       discount_name: d.code || d.title,
-      usage_count: d.usedCount
+      usage_count: d.usedCount,
     }))
     .sort((a, b) => b.usage_count - a.usage_count)
     .slice(0, 5);
 
   analyticsData.discountList = appliedDiscounts;
   if (shopifyDiscounts && shopifyDiscounts.length > 0) {
-    analyticsData.discountUsage = shopifyDiscounts.filter(d => d.status === 'active').length;
+    analyticsData.discountUsage = shopifyDiscounts.filter(
+      (d) => d.status === 'active'
+    ).length;
   } else {
     analyticsData.discountList = [];
   }
 
-  return json({ layoutFiles, shopName, isEnabled, analyticsData });
+  return json(
+    { layoutFiles, shopName, isEnabled, analyticsData },
+    {
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    }
+  );
 };
-
-// Layout designs metadata
-const layoutMetadata = [
-  {
-    id: 1,
-    title: 'The Guided Architect',
-    description:
-      'A conversion-focused multi-step builder with progress tracking and tiered discount logic.',
-    img: '/combo-design-one-preview.png',
-    fallbackImg:
-      'https://placehold.co/400x300/000000/ffffff?text=Guided+Architect',
-    badge: 'Core',
-    badgeTone: 'success',
-    blockName: 'combo_main',
-    features: [
-      'Visual progress tracking',
-      'Tiered discount engine',
-      'Step-by-step selection flow',
-      'Sticky summary footer',
-      'Ideal for complex kits',
-    ],
-    bestFor: 'Complex bundles and high-value kits',
-  },
-  {
-    id: 2,
-    title: 'The Velocity Stream',
-    description:
-      'An immersive, motion-driven experience featuring an auto-scrolling carousel for maximum engagement.',
-    img: '/combo-design-two-preview.png',
-    fallbackImg:
-      'https://placehold.co/400x300/000000/ffffff?text=Motion+Slider',
-    badge: 'Trending',
-    badgeTone: 'success',
-    blockName: 'combo_design_two',
-    features: [
-      'Smooth auto-scroll motion',
-      'Touch-optimized swiping',
-      'Dynamic navigation cues',
-      'Infinite loop storytelling',
-      'Visual-first discovery',
-    ],
-    bestFor: 'Visual storytelling and featured promotions',
-  },
-  {
-    id: 3,
-    title: 'The Editorial Split',
-    description:
-      'A premium, sophisticated layout that pairs high-impact imagery with detailed product storytelling.',
-    img: '/combo-design-four-preview.png',
-    fallbackImg:
-      'https://placehold.co/400x300/000000/ffffff?text=Editorial+Split',
-    badge: 'Premium',
-    badgeTone: 'success',
-    blockName: 'combo_design_four',
-    features: [
-      'Luxe split-screen design',
-      'Detail-rich narratives',
-      'High-contrast callouts',
-      'Dark mode elegance',
-      'Psychology-driven flow',
-    ],
-    bestFor: 'Luxury items and high-impact product stories',
-  },
-];
 
 // ... inside Dashboard component ...
 export default function Dashboard() {
   const { shopName, isEnabled, analyticsData } = useLoaderData();
+  const toggleFetcher = useFetcher();
+  const revalidator = useRevalidator();
   const [appStatus, setAppStatus] = useState(isEnabled);
+
+  useEffect(() => {
+    setAppStatus(isEnabled);
+  }, [isEnabled]);
+
+  useEffect(() => {
+    if (toggleFetcher.data?.success) {
+      setAppStatus(toggleFetcher.data.status === 'enabled');
+      revalidator.revalidate();
+    }
+  }, [toggleFetcher.data, revalidator]);
+
+  const isToggling = toggleFetcher.state !== 'idle';
+
+  const handleStatusToggle = () => {
+    toggleFetcher.submit(
+      { enabled: String(!appStatus) },
+      { method: 'POST', action: '/api/toggle-app' }
+    );
+  };
 
   return (
     <Page
@@ -363,6 +302,15 @@ export default function Dashboard() {
             </BlockStack>
 
             <InlineStack align="center" gap="400">
+              <Button
+                variant={appStatus ? 'secondary' : 'primary'}
+                tone={appStatus ? 'critical' : 'success'}
+                loading={isToggling}
+                disabled={isToggling}
+                onClick={handleStatusToggle}
+              >
+                {appStatus ? 'Disable in App' : 'Enable in App'}
+              </Button>
               <EnableThemeButton
                 shopName={shopName}
                 onToggle={setAppStatus}
@@ -434,8 +382,7 @@ export default function Dashboard() {
           </InlineStack>
         </Card>
 
-        {/* --- Shopify Analytics Extension Section --- */}
-        <ShopifyAnalytics initialData={analyticsData} />
+        {/* <ShopifyAnalytics initialData={analyticsData} /> */}
       </BlockStack>
     </Page>
   );

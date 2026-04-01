@@ -461,24 +461,124 @@ export const action = async ({ request }) => {
 };
 
 export const loader = async ({ request }) => {
-  // Capture session to get shop domain
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
-
   const url = new URL(request.url);
   const templateId = url.searchParams.get('templateId');
+  const mode = url.searchParams.get('mode'); // 'resources' or 'full'
 
-  const db = await getDb(shop);
-  const allDiscounts = db.discounts || [];
-  const activeDiscounts = allDiscounts
-    .filter((d) => d.status === 'active')
-    .map((discount) => ({
-      id: discount.id,
-      title: discount.title,
-      type: discount.type,
-      status: discount.status,
-      value: discount.value,
+  // RESOURCE FETCHING MODE (Background)
+  if (mode === 'resources') {
+    console.log('[Customize Loader] Entering resources mode for shop:', shop);
+    let collections = [];
+    try {
+      let hasNextPage = true,
+        endCursor = null,
+        pageCount = 0;
+      while (hasNextPage && pageCount < 10) {
+        console.log(
+          `[Customize Loader] Fetching collections page ${pageCount + 1}, cursor: ${endCursor}`
+        );
+        const res = await admin.graphql(
+          `#graphql
+          query getCollections($cursor: String) {
+            collections(first: 250, after: $cursor) {
+              pageInfo { hasNextPage endCursor }
+              nodes { id title handle }
+            }
+          }`,
+          { variables: { cursor: endCursor } }
+        );
+
+        const json = await res.json();
+
+        if (json.errors) {
+          console.error(
+            '[Customize Loader] GraphQL Errors:',
+            JSON.stringify(json.errors)
+          );
+          break;
+        }
+
+        const data = json.data?.collections;
+        if (data && data.nodes) {
+          console.log(
+            `[Customize Loader] Found ${data.nodes.length} collections on this page`
+          );
+          collections.push(
+            ...data.nodes.map((n) => ({
+              id: n.id,
+              title: n.title,
+              handle: n.handle,
+              productsCount: 0, // Simplified for now
+            }))
+          );
+          hasNextPage = data.pageInfo.hasNextPage;
+          endCursor = data.pageInfo.endCursor;
+        } else {
+          console.log(
+            '[Customize Loader] No more collections data in response'
+          );
+          break;
+        }
+        pageCount++;
+      }
+      console.log(
+        `[Customize Loader] Total collections fetched: ${collections.length}`
+      );
+    } catch (e) {
+      console.error('[Customize Loader] Collection fetch CRITICAL error:', e);
+    }
+
+    console.log('[Customize Loader] Fetching products and pages...');
+    const productsRes = await admin
+      .graphql(
+        `#graphql
+      query getProducts {
+        products(first: 60) {
+          nodes { id title handle vendor totalInventory descriptionHtml images(first: 8) { nodes { url } } featuredMedia { preview { image { url } } } collections(first: 5) { nodes { handle } } variants(first: 10) { nodes { id title price compareAtPrice inventoryQuantity image { url } } } }
+        }
+      }`
+      )
+      .then((r) => r.json())
+      .catch((err) => {
+        console.error('[Customize Loader] Product fetch error:', err);
+        return { data: { products: { nodes: [] } } };
+      });
+
+    const products = (productsRes.data?.products?.nodes || []).map((p) => ({
+      ...p,
+      available: Number(p.totalInventory || 0) > 0,
+      collections: p.collections?.nodes || [],
+      variants: p.variants?.nodes || [],
+      secondImageSrc:
+        p.images?.nodes?.length > 1 ? p.images.nodes[1].url : null,
     }));
+
+    const pagesRes = await admin
+      .graphql(
+        `#graphql
+      query getPages { pages(first: 50) { nodes { id handle title } } }`
+      )
+      .then((r) => r.json())
+      .catch((err) => {
+        console.error('[Customize Loader] Pages fetch error:', err);
+        return { data: { pages: { nodes: [] } } };
+      });
+    const shopPages = pagesRes.data?.pages?.nodes || [];
+
+    console.log(
+      `[Customize Loader] Returning ${collections.length} collections, ${products.length} products, ${shopPages.length} pages`
+    );
+    return json({ collections, products, shopPages });
+  }
+
+  // INITIAL LOAD MODE (Fast)
+  const db = await getDb(shop).catch(() => ({ templates: [], discounts: [] }));
+  const shopTemplates = (db.templates || []).filter((t) => t.shop === shop);
+  const initialTemplate = templateId
+    ? shopTemplates.find((t) => String(t.id) === String(templateId)) || null
+    : null;
 
   const blocksDir = path.join(
     process.cwd(),
@@ -488,189 +588,28 @@ export const loader = async ({ request }) => {
   );
   let layoutFiles = [];
   try {
-    if (fs.existsSync(blocksDir)) {
+    if (fs.existsSync(blocksDir))
       layoutFiles = fs
         .readdirSync(blocksDir)
         .filter((f) => f.endsWith('.liquid'));
-    }
-  } catch (e) {
-    console.error('Error reading blocks directory:', e);
-  }
-
-  const allTemplates = db.templates || [];
-  // Filter by shop to ensure uniqueness within the same shop
-  const shopTemplates = allTemplates.filter((t) => t.shop === shop);
-
-  // Fetch shop pages for selection
-  let shopPages = [];
-  try {
-    const pagesResponse = await admin.graphql(
-      `#graphql
-      query getPages {
-        pages(first: 50) {
-          nodes {
-            id
-            handle
-            title
-          }
-        }
-      }`
-    );
-    const pagesData = await pagesResponse.json();
-    shopPages = pagesData.data.pages.nodes;
-  } catch (e) {
-    console.error('Error fetching pages:', e);
-  }
-
-  // Fetch all collections from Shopify using pagination
-  let collections = [];
-  try {
-    console.log('[Customize] Fetching all collections from Shopify...');
-    let hasNextPage = true;
-    let endCursor = null;
-
-    while (hasNextPage) {
-      const query = `#graphql
-        query getCollections($cursor: String) {
-          collections(first: 250, after: $cursor) {
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              id
-              title
-              handle
-              productsCount {
-                count
-              }
-            }
-          }
-        }`;
-
-      const response = await admin.graphql(query, {
-        variables: { cursor: endCursor },
-      });
-
-      const responseJson = await response.json();
-
-      if (responseJson.errors) {
-        console.error(
-          '[Customize] GraphQL errors while fetching collections:',
-          JSON.stringify(responseJson.errors, null, 2)
-        );
-        break;
-      }
-
-      const connection = responseJson.data?.collections;
-      if (connection) {
-        const nodes = connection.nodes || [];
-        // Flatten productsCount if it returns as an object in some API versions, or handle if it's missing
-        const mappedNodes = nodes.map((node) => ({
-          id: node.id,
-          title: node.title,
-          handle: node.handle,
-          productsCount:
-            typeof node.productsCount === 'object'
-              ? node.productsCount?.count
-              : node.productsCount,
-        }));
-
-        collections.push(...mappedNodes);
-        hasNextPage = connection.pageInfo?.hasNextPage || false;
-        endCursor = connection.pageInfo?.endCursor || null;
-      } else {
-        break;
-      }
-    }
-    console.log(
-      `[Customize] Successfully fetched ${collections.length} total collections`
-    );
-  } catch (e) {
-    console.error('[Customize] Error fetching collections:', e);
-    console.error('[Customize] Error details:', e.message, e.stack);
-  }
-
-  // Fetch products from Shopify
-  let products = [];
-  try {
-    const productsResponse = await admin.graphql(
-      `#graphql
-      query getProducts {
-        products(first: 50) {
-          nodes {
-            id
-            title
-            handle
-            vendor
-            totalInventory
-            featuredMedia {
-              preview {
-                image {
-                  url
-                }
-              }
-            }
-            collections(first: 10) {
-              nodes {
-                handle
-              }
-            }
-            variants(first: 20) {
-              nodes {
-                id
-                title
-                price
-                compareAtPrice
-                inventoryQuantity
-                image {
-                  url
-                }
-              }
-            }
-          }
-        }
-      }`
-    );
-    const productsData = await productsResponse.json();
-    products = (productsData.data?.products?.nodes || []).map((p) => ({
-      ...p,
-      available: Number(p.totalInventory || 0) > 0,
-      collections: p.collections?.nodes || [],
-      variants: p.variants?.nodes || [],
-    }));
-  } catch (e) {
-    console.error('Error fetching products:', e);
-  }
-
-  let initialTemplate = null;
-  if (templateId) {
-    initialTemplate =
-      shopTemplates.find((t) => String(t.id) === String(templateId)) || null;
-  }
-
-  // Pass minimal info for validation
-  const existingTemplates = shopTemplates.map((t) => ({
-    id: t.id,
-    title: t.title,
-  }));
-
-  console.log('[Customize] Loader returning data:');
-  console.log('  - Collections:', collections.length);
-  console.log('  - Products:', products.length);
-  console.log('  - Shop:', shop);
+  } catch (e) {}
 
   return json({
-    activeDiscounts,
-    layoutFiles,
     initialTemplate,
     shop,
-    existingTemplates,
-    shopPages,
-    collections,
-    products,
+    existingTemplates: shopTemplates.map((t) => ({ id: t.id, title: t.title })),
+    layoutFiles,
+    activeDiscounts: (db.discounts || []).map((d) => ({
+      id: d.id,
+      title: d.title,
+      type: d.type,
+      status: d.status,
+      value: d.value,
+    })),
   });
 };
+
+// Helper for simple PxField component
 
 // Simple PxField component
 function PxField({
@@ -907,6 +846,22 @@ function ColorPickerField({ label, value, onChange }) {
 }
 
 const DEFAULT_COMBO_CONFIG = {
+  show_tab_all: true,
+  grid_layout_type: 'grid',
+  show_nav_arrows: true,
+  enable_touch_swipe: true,
+  swipe_sensitivity: 5,
+  show_scrollbar: false,
+  arrow_color: '#ffffff',
+  arrow_bg_color: '#000000',
+  arrow_size: 40,
+  arrow_border_radius: 50,
+  arrow_opacity: 0.9,
+  arrow_position: 'inside',
+  scrollbar_color: '#dddddd',
+  scrollbar_thickness: 4,
+  desktop_columns: 4,
+  mobile_columns: 2,
   layout: 'layout1', // default layout
   product_add_btn_text: 'Add',
   product_add_btn_color: '#000',
@@ -929,9 +884,17 @@ const DEFAULT_COMBO_CONFIG = {
   show_buy_btn: true,
   // New UI Settings
   show_progress_bar: true,
+  enable_product_hover: false,
+  product_hover_mode: 'second_image',
   progress_bar_color: '#000000',
   selection_highlight_color: '#000000',
   show_selection_tick: true,
+  preview_icon_visibility: 'static', // hover, static
+  preview_modal_content_gap: 10,
+  preview_modal_gallery_ratio: 1.45,
+  preview_modal_info_ratio: 0.85,
+  preview_modal_gallery_columns: 2,
+  preview_modal_show_arrows: true,
   product_card_variants_display: 'static', // hover, static, popup
   // Variant select dropdown styling defaults
   variant_select_bg: '#f9f9f9',
@@ -1181,6 +1144,8 @@ const DEFAULT_COMBO_CONFIG = {
   tab_active_bg_color: '#000000',
   tab_active_text_color: '#ffffff',
   tab_border_radius: 30,
+  enable_product_hover: false,
+  product_hover_mode: 'second_image', // description, second_image
 };
 
 const DESKTOP_PREVIEW_BASE_WIDTH = 1280;
@@ -1263,16 +1228,43 @@ const TEMPLATE_CATALOGUE = [
 ];
 
 export default function Customize() {
-
   const shopify = useAppBridge();
   const {
     activeDiscounts = [],
     initialTemplate = null,
     existingTemplates = [],
-    shopPages = [],
-    collections = [],
-    products = [],
+    layoutFiles = [],
+    shop,
   } = useLoaderData();
+
+  // Background resource fetching for speed
+  const resourceFetcher = useFetcher();
+  const [collections, setCollections] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [shopPages, setShopPages] = useState([]);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+
+  useEffect(() => {
+    console.log('[Customize] Triggering resource fetcher...');
+    resourceFetcher.load('/app/customize?mode=resources');
+  }, []);
+
+  useEffect(() => {
+    console.log('[Customize] resourceFetcher state:', resourceFetcher.state);
+    if (resourceFetcher.data) {
+      console.log('[Customize] resourceFetcher data received:', {
+        collectionsCount: resourceFetcher.data.collections?.length || 0,
+        productsCount: resourceFetcher.data.products?.length || 0,
+        pagesCount: resourceFetcher.data.shopPages?.length || 0,
+      });
+      setCollections(resourceFetcher.data.collections || []);
+      setProducts(resourceFetcher.data.products || []);
+      setShopPages(resourceFetcher.data.shopPages || []);
+      setResourcesLoading(false);
+    } else if (resourceFetcher.state === 'idle' && !resourcesLoading) {
+      // This might happen if fetcher is done but no data. Usually handled by if (resourceFetcher.data)
+    }
+  }, [resourceFetcher.data, resourceFetcher.state]);
   const discountFetcher = useFetcher();
   const saveFetcher = useFetcher();
   const [searchParams] = useSearchParams();
@@ -1348,6 +1340,33 @@ export default function Customize() {
   const [titleError, setTitleError] = useState('');
   const [pageError, setPageError] = useState('');
   const [isActive, setIsActive] = useState(initialTemplate?.active || false);
+  const [initTemplateId, setInitTemplateId] = useState(initialTemplate?.id);
+
+  useEffect(() => {
+    if (initialTemplate) {
+      if (initialTemplate.id !== initTemplateId) {
+        setInitTemplateId(initialTemplate.id);
+        setConfig((prev) => ({
+          ...DEFAULT_COMBO_CONFIG,
+          ...(initialTemplate.config || {}),
+        }));
+        setSaveTitle(initialTemplate.title || 'Untitled Template');
+        setIsActive(initialTemplate.active || false);
+        setPickedLayout(initialTemplate.config?.layout || 'layout1');
+        // Reset any context-specific state if needed
+        fetchedHandlesRef.current.clear();
+      }
+    } else {
+      // Reset if we go back to "new" mode
+      if (initTemplateId) {
+        setInitTemplateId(undefined);
+        setConfig(DEFAULT_COMBO_CONFIG);
+        setSaveTitle('Untitled Template');
+        setIsActive(false);
+        setPickedLayout(null);
+      }
+    }
+  }, [initialTemplate, initTemplateId]);
 
   useEffect(() => {
     // Auto-generate handle from template title only for NEW templates
@@ -1623,7 +1642,6 @@ export default function Customize() {
     []
   );
 
-
   // Real-time product fetching for multi-step bundles (Layout 1)
   useEffect(() => {
     if (config.layout !== 'layout1') return;
@@ -1743,15 +1761,18 @@ export default function Customize() {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const getStyleKey = useCallback((baseKey) => {
-    if (styleDevice === 'mobile') {
-      const mobileKey = `${baseKey}_mobile`;
-      // We check if the mobile version is specifically defined in our config,
-      // though typically we'll just bind to it directly.
-      return mobileKey;
-    }
-    return baseKey;
-  }, [styleDevice]);
+  const getStyleKey = useCallback(
+    (baseKey) => {
+      if (styleDevice === 'mobile') {
+        const mobileKey = `${baseKey}_mobile`;
+        // We check if the mobile version is specifically defined in our config,
+        // though typically we'll just bind to it directly.
+        return mobileKey;
+      }
+      return baseKey;
+    },
+    [styleDevice]
+  );
 
   const updateBoth = useCallback((keyA, keyB, value) => {
     setConfig((prev) => ({ ...prev, [keyA]: value, [keyB]: value }));
@@ -1819,13 +1840,26 @@ export default function Customize() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+    const normalizedConfig = {
+      ...config,
+      preview_modal_content_gap:
+        Number(config.preview_modal_content_gap ?? 10) || 10,
+      preview_modal_gallery_ratio:
+        Number(config.preview_modal_gallery_ratio ?? 1.45) || 1.45,
+      preview_modal_info_ratio:
+        Number(config.preview_modal_info_ratio ?? 0.85) || 0.85,
+      preview_modal_gallery_columns:
+        Math.max(1, Number(config.preview_modal_gallery_columns ?? 2)) || 2,
+      preview_modal_show_arrows: config.preview_modal_show_arrows !== false,
+    };
+
     const body = {
       resource: 'templates',
       action: isEditing ? 'update' : 'create',
       id: isEditing ? initialTemplate.id : undefined,
       data: {
         title: saveTitle,
-        config,
+        config: normalizedConfig,
       },
       // Only publish/link to a page if enabled
       publishParams: publishToPage
@@ -2123,7 +2157,8 @@ export default function Customize() {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-6px)';
-                e.currentTarget.style.boxShadow = '0 12px 28px rgba(0,0,0,0.08)';
+                e.currentTarget.style.boxShadow =
+                  '0 12px 28px rgba(0,0,0,0.08)';
                 e.currentTarget.style.borderColor = '#d2d5d8';
               }}
               onMouseLeave={(e) => {
@@ -2133,7 +2168,12 @@ export default function Customize() {
               }}
             >
               {/* Preview image */}
-              <div style={{ position: 'relative', borderBottom: '1px solid #f0f2f4' }}>
+              <div
+                style={{
+                  position: 'relative',
+                  borderBottom: '1px solid #f0f2f4',
+                }}
+              >
                 <img
                   src={tpl.img}
                   alt={tpl.title}
@@ -2161,8 +2201,7 @@ export default function Customize() {
                     right: '16px',
                     background:
                       tpl.badgeTone === 'success' ? '#e3f1df' : '#e6f0ff',
-                    color:
-                      tpl.badgeTone === 'success' ? '#1a7f45' : '#004fe6',
+                    color: tpl.badgeTone === 'success' ? '#1a7f45' : '#004fe6',
                     padding: '4px 12px',
                     borderRadius: '24px',
                     fontSize: '12px',
@@ -2176,7 +2215,14 @@ export default function Customize() {
               </div>
 
               {/* Card body */}
-              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+              <div
+                style={{
+                  padding: '24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flexGrow: 1,
+                }}
+              >
                 <div style={{ marginBottom: 12 }}>
                   <Text variant="headingLg" as="h3" fontWeight="bold">
                     {tpl.title}
@@ -2204,8 +2250,25 @@ export default function Customize() {
                   }}
                 >
                   {tpl.features.map((f, i) => (
-                    <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#008060" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+                    <li
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '8px',
+                      }}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#008060"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ flexShrink: 0, marginTop: '2px' }}
+                      >
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
                       <span style={{ color: '#4a4a4a' }}>{f}</span>
@@ -2231,7 +2294,8 @@ export default function Customize() {
                       fontWeight: '500',
                     }}
                   >
-                    Best for: <span style={{ color: '#202223' }}>{tpl.bestFor}</span>
+                    Best for:{' '}
+                    <span style={{ color: '#202223' }}>{tpl.bestFor}</span>
                   </div>
                   <Button
                     variant="primary"
@@ -2251,7 +2315,6 @@ export default function Customize() {
 
   // ── Full customisation editor ────────────────────────────────────────────
   return (
-
     <Page
       backAction={
         !initialTemplate
@@ -2527,24 +2590,6 @@ export default function Customize() {
             </Card>
             <div className="customize-section-gap"></div>
             <Card title="Preview" sectioned>
-              <div className="customize-preview-toggle">
-                <ButtonGroup segmented>
-                  <Button
-                    icon={DesktopIcon}
-                    pressed={previewDevice === 'desktop'}
-                    onClick={() => setPreviewDevice('desktop')}
-                  >
-                    Desktop
-                  </Button>
-                  <Button
-                    icon={MobileIcon}
-                    pressed={previewDevice === 'mobile'}
-                    onClick={() => setPreviewDevice('mobile')}
-                  >
-                    Mobile
-                  </Button>
-                </ButtonGroup>
-              </div>
               <div className={`preview-stage preview-stage--${previewDevice}`}>
                 {previewDevice === 'desktop' ? (
                   <div
@@ -2582,7 +2627,11 @@ export default function Customize() {
                           setAllStepProducts={setAllStepProducts}
                         />
                         {config.custom_css && (
-                          <style dangerouslySetInnerHTML={{ __html: `.preview-viewport { ${config.custom_css} }` }} />
+                          <style
+                            dangerouslySetInnerHTML={{
+                              __html: `.preview-viewport { ${config.custom_css} }`,
+                            }}
+                          />
                         )}
                       </div>
                     </div>
@@ -2605,7 +2654,11 @@ export default function Customize() {
                       setAllStepProducts={setAllStepProducts}
                     />
                     {config.custom_css && (
-                      <style dangerouslySetInnerHTML={{ __html: `.preview-viewport { ${config.custom_css} }` }} />
+                      <style
+                        dangerouslySetInnerHTML={{
+                          __html: `.preview-viewport { ${config.custom_css} }`,
+                        }}
+                      />
                     )}
                   </div>
                 )}
@@ -2638,49 +2691,77 @@ export default function Customize() {
             {[
               { id: 'layout', label: 'Layout', icon: LayoutColumns3Icon },
               { id: 'style', label: 'Style', icon: PaintBrushFlatIcon },
+              { id: 'mobile_view', label: 'Mobile View', icon: MobileIcon },
               { id: 'advanced', label: 'Advanced', icon: SettingsIcon },
-            ].map((cat) => (
-              <div
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                style={{
-                  flex: 1,
-                  padding: '10px 4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                  borderBottom:
-                    activeCategory === cat.id
+            ].map((cat) => {
+              const isActive =
+                (cat.id === 'layout' && activeCategory === 'layout') ||
+                (cat.id === 'style' &&
+                  activeCategory === 'style' &&
+                  styleDevice === 'desktop') ||
+                (cat.id === 'mobile_view' &&
+                  activeCategory === 'style' &&
+                  styleDevice === 'mobile') ||
+                (cat.id === 'advanced' && activeCategory === 'advanced');
+
+              const handleClick = () => {
+                if (cat.id === 'layout') {
+                  setActiveCategory('layout');
+                } else if (cat.id === 'style') {
+                  setActiveCategory('style');
+                  setStyleDevice('desktop');
+                  setPreviewDevice('desktop');
+                } else if (cat.id === 'mobile_view') {
+                  setActiveCategory('style');
+                  setStyleDevice('mobile');
+                  setPreviewDevice('mobile');
+                } else if (cat.id === 'advanced') {
+                  setActiveCategory('advanced');
+                }
+              };
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={handleClick}
+                  style={{
+                    flex: 1,
+                    padding: '10px 4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    borderBottom: isActive
                       ? '3px solid #000000'
                       : '3px solid transparent',
-                  color: activeCategory === cat.id ? '#000000' : '#6d7175',
-                  transition: 'all 0.2s ease',
-                  fontWeight: activeCategory === cat.id ? '600' : '400',
-                }}
-              >
-                <div
-                  style={{
-                    color: activeCategory === cat.id ? '#000000' : '#8c9196',
+                    color: isActive ? '#000000' : '#6d7175',
+                    transition: 'all 0.2s ease',
+                    fontWeight: isActive ? '600' : '400',
                   }}
                 >
-                  <Icon
-                    source={cat.icon}
-                    color={activeCategory === cat.id ? 'brand' : 'subdued'}
-                  />
+                  <div
+                    style={{
+                      color: isActive ? '#000000' : '#8c9196',
+                    }}
+                  >
+                    <Icon
+                      source={cat.icon}
+                      color={isActive ? 'brand' : 'subdued'}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {cat.label}
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {cat.label}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div
@@ -3795,6 +3876,224 @@ export default function Customize() {
                           value={config.grid_layout_type}
                           onChange={(v) => updateConfig('grid_layout_type', v)}
                         />
+
+                        {config.grid_layout_type === 'slider' && (
+                          <div
+                            style={{
+                              gridColumn: '1 / -1',
+                              marginTop: '16px',
+                              padding: '16px',
+                              background: '#f9fafb',
+                              borderRadius: '12px',
+                              border: '1px solid #e1e3e5',
+                              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)',
+                            }}
+                          >
+                            <div style={{ marginBottom: '16px' }}>
+                              <Text variant="headingMd" as="h5">
+                                Slider Customization
+                              </Text>
+                            </div>
+
+                            <FormLayout>
+                              {/* Navigation Group */}
+                              <div style={{ marginBottom: '16px' }}>
+                                <Text
+                                  variant="headingSm"
+                                  as="h6"
+                                  color="subdued"
+                                >
+                                  Navigation
+                                </Text>
+                                <div style={{ marginTop: '10px' }}>
+                                  <Checkbox
+                                    label="Show Navigation Arrows"
+                                    checked={!!config.show_nav_arrows}
+                                    onChange={(v) =>
+                                      updateConfig('show_nav_arrows', v)
+                                    }
+                                  />
+                                  {config.show_nav_arrows && (
+                                    <div
+                                      style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: '12px',
+                                        marginTop: '12px',
+                                        padding: '12px',
+                                        background: '#fff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #eee',
+                                      }}
+                                    >
+                                      <ColorPickerField
+                                        label="Icon Color"
+                                        value={config.arrow_color || '#ffffff'}
+                                        onChange={(v) =>
+                                          updateConfig('arrow_color', v)
+                                        }
+                                      />
+                                      <ColorPickerField
+                                        label="Background"
+                                        value={
+                                          config.arrow_bg_color || '#000000'
+                                        }
+                                        onChange={(v) =>
+                                          updateConfig('arrow_bg_color', v)
+                                        }
+                                      />
+                                      <PxField
+                                        label="Size"
+                                        value={config.arrow_size || 40}
+                                        onChange={(v) =>
+                                          updateConfig('arrow_size', v)
+                                        }
+                                      />
+                                      <PxField
+                                        label="Radius (%)"
+                                        value={config.arrow_border_radius || 50}
+                                        onChange={(v) =>
+                                          updateConfig('arrow_border_radius', v)
+                                        }
+                                        suffix="%"
+                                        max={50}
+                                      />
+                                      <div style={{ gridColumn: 'span 2' }}>
+                                        <RangeSlider
+                                          label="Opacity"
+                                          value={config.arrow_opacity ?? 0.9}
+                                          onChange={(v) =>
+                                            updateConfig('arrow_opacity', v)
+                                          }
+                                          min={0}
+                                          max={1}
+                                          step={0.1}
+                                          output
+                                        />
+                                      </div>
+                                      <div style={{ gridColumn: 'span 2' }}>
+                                        <Select
+                                          label="Arrow Position"
+                                          options={[
+                                            {
+                                              label: 'Inside Slider',
+                                              value: 'inside',
+                                            },
+                                            {
+                                              label: 'Outside Slider',
+                                              value: 'outside',
+                                            },
+                                          ]}
+                                          value={
+                                            config.arrow_position || 'inside'
+                                          }
+                                          onChange={(v) =>
+                                            updateConfig('arrow_position', v)
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Interaction Group */}
+                              <div style={{ marginBottom: '16px' }}>
+                                <Text
+                                  variant="headingSm"
+                                  as="h6"
+                                  color="subdued"
+                                >
+                                  Interaction
+                                </Text>
+                                <div style={{ marginTop: '10px' }}>
+                                  <Checkbox
+                                    label="Enable Touch/Swipe"
+                                    checked={
+                                      config.enable_touch_swipe !== false
+                                    }
+                                    onChange={(v) =>
+                                      updateConfig('enable_touch_swipe', v)
+                                    }
+                                  />
+                                  {config.enable_touch_swipe !== false && (
+                                    <div
+                                      style={{
+                                        marginTop: '8px',
+                                        padding: '12px',
+                                        background: '#fff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #eee',
+                                      }}
+                                    >
+                                      <RangeSlider
+                                        label="Sensitivity"
+                                        value={config.swipe_sensitivity || 5}
+                                        onChange={(v) =>
+                                          updateConfig('swipe_sensitivity', v)
+                                        }
+                                        min={1}
+                                        max={10}
+                                        output
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Appearance Group */}
+                              <div>
+                                <Text
+                                  variant="headingSm"
+                                  as="h6"
+                                  color="subdued"
+                                >
+                                  Appearance
+                                </Text>
+                                <div style={{ marginTop: '10px' }}>
+                                  <Checkbox
+                                    label="Show Scrollbar"
+                                    checked={!!config.show_scrollbar}
+                                    onChange={(v) =>
+                                      updateConfig('show_scrollbar', v)
+                                    }
+                                  />
+                                  {config.show_scrollbar && (
+                                    <div
+                                      style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: '12px',
+                                        marginTop: '12px',
+                                        padding: '12px',
+                                        background: '#fff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #eee',
+                                      }}
+                                    >
+                                      <ColorPickerField
+                                        label="Scroll Color"
+                                        value={
+                                          config.scrollbar_color || '#dddddd'
+                                        }
+                                        onChange={(v) =>
+                                          updateConfig('scrollbar_color', v)
+                                        }
+                                      />
+                                      <PxField
+                                        label="Thickness"
+                                        value={config.scrollbar_thickness || 4}
+                                        onChange={(v) =>
+                                          updateConfig('scrollbar_thickness', v)
+                                        }
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </FormLayout>
+                          </div>
+                        )}
                         <Select
                           label="Mobile Columns"
                           options={[
@@ -3839,30 +4138,6 @@ export default function Customize() {
 
             {activeCategory === 'style' && (
               <>
-                <div style={{ marginBottom: 16, padding: '0 4px' }}>
-                  <Text variant="bodySm" as="p" color="subdued" mb="2">
-                    Editing style for:
-                  </Text>
-                  <ButtonGroup segmented>
-                    <Button
-                      size="slim"
-                      icon={DesktopIcon}
-                      pressed={styleDevice === 'desktop'}
-                      onClick={() => setStyleDevice('desktop')}
-                    >
-                      Desktop
-                    </Button>
-                    <Button
-                      size="slim"
-                      icon={MobileIcon}
-                      pressed={styleDevice === 'mobile'}
-                      onClick={() => setStyleDevice('mobile')}
-                    >
-                      Mobile
-                    </Button>
-                  </ButtonGroup>
-                </div>
-
                 {/* Content - Tab 2 */}
                 {config.layout === 'layout4' && (
                   <CollapsibleCard
@@ -4152,8 +4427,12 @@ export default function Customize() {
                                 { label: 'Center', value: 'center' },
                                 { label: 'Right', value: 'right' },
                               ]}
-                              value={config[getStyleKey('heading_align')] || 'left'}
-                              onChange={(v) => updateConfig(getStyleKey('heading_align'), v)}
+                              value={
+                                config[getStyleKey('heading_align')] || 'left'
+                              }
+                              onChange={(v) =>
+                                updateConfig(getStyleKey('heading_align'), v)
+                              }
                             />
                             <Select
                               label="Title Font Weight"
@@ -4165,21 +4444,36 @@ export default function Customize() {
                                 { label: 'Extra Bold (800)', value: '800' },
                               ]}
                               value={String(
-                                config[getStyleKey('heading_font_weight')] || config.heading_font_weight || '700'
+                                config[getStyleKey('heading_font_weight')] ||
+                                  config.heading_font_weight ||
+                                  '700'
                               )}
                               onChange={(v) =>
-                                updateConfig(getStyleKey('heading_font_weight'), v)
+                                updateConfig(
+                                  getStyleKey('heading_font_weight'),
+                                  v
+                                )
                               }
                             />
                             <PxField
                               label="Title Size"
-                              value={config[getStyleKey('heading_size')] ?? config.heading_size}
-                              onChange={(v) => updateConfig(getStyleKey('heading_size'), v)}
+                              value={
+                                config[getStyleKey('heading_size')] ??
+                                config.heading_size
+                              }
+                              onChange={(v) =>
+                                updateConfig(getStyleKey('heading_size'), v)
+                              }
                             />
                             <ColorPickerField
                               label="Title Color"
-                              value={config[getStyleKey('heading_color')] || config.heading_color}
-                              onChange={(v) => updateConfig(getStyleKey('heading_color'), v)}
+                              value={
+                                config[getStyleKey('heading_color')] ||
+                                config.heading_color
+                              }
+                              onChange={(v) =>
+                                updateConfig(getStyleKey('heading_color'), v)
+                              }
                             />
                           </div>
                           <div style={{ marginTop: 12 }}>
@@ -4201,9 +4495,16 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('title_container_padding_top')] ?? config.title_container_padding_top}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_padding_top')
+                                  ] ?? config.title_container_padding_top
+                                }
                                 onChange={(v) =>
-                                  updateConfig(getStyleKey('title_container_padding_top'), v)
+                                  updateConfig(
+                                    getStyleKey('title_container_padding_top'),
+                                    v
+                                  )
                                 }
                                 style={{
                                   minWidth: 80,
@@ -4217,10 +4518,16 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Right"
-                                value={config[getStyleKey('title_container_padding_right')] ?? config.title_container_padding_right}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_padding_right')
+                                  ] ?? config.title_container_padding_right
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('title_container_padding_right'),
+                                    getStyleKey(
+                                      'title_container_padding_right'
+                                    ),
                                     v
                                   )
                                 }
@@ -4236,10 +4543,18 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Bottom"
-                                value={config[getStyleKey('title_container_padding_bottom')] ?? config.title_container_padding_bottom}
+                                value={
+                                  config[
+                                    getStyleKey(
+                                      'title_container_padding_bottom'
+                                    )
+                                  ] ?? config.title_container_padding_bottom
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('title_container_padding_bottom'),
+                                    getStyleKey(
+                                      'title_container_padding_bottom'
+                                    ),
                                     v
                                   )
                                 }
@@ -4255,7 +4570,11 @@ export default function Customize() {
                               />
                               <PxField
                                 label="Left"
-                                value={config[getStyleKey('title_container_padding_left')] ?? config.title_container_padding_left}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_padding_left')
+                                  ] ?? config.title_container_padding_left
+                                }
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_padding_left'),
@@ -4284,31 +4603,55 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('title_container_margin_top')] ?? config.title_container_margin_top}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_margin_top')
+                                  ] ?? config.title_container_margin_top
+                                }
                                 onChange={(v) =>
-                                  updateConfig(getStyleKey('title_container_margin_top'), v)
+                                  updateConfig(
+                                    getStyleKey('title_container_margin_top'),
+                                    v
+                                  )
                                 }
                               />
                               <PxField
                                 label="Bottom"
-                                value={config[getStyleKey('title_container_margin_bottom')] ?? config.title_container_margin_bottom}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_margin_bottom')
+                                  ] ?? config.title_container_margin_bottom
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('title_container_margin_bottom'),
+                                    getStyleKey(
+                                      'title_container_margin_bottom'
+                                    ),
                                     v
                                   )
                                 }
                               />
                               <PxField
                                 label="Left"
-                                value={config[getStyleKey('title_container_margin_left')] ?? config.title_container_margin_left}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_margin_left')
+                                  ] ?? config.title_container_margin_left
+                                }
                                 onChange={(v) =>
-                                  updateConfig(getStyleKey('title_container_margin_left'), v)
+                                  updateConfig(
+                                    getStyleKey('title_container_margin_left'),
+                                    v
+                                  )
                                 }
                               />
                               <PxField
                                 label="Right"
-                                value={config[getStyleKey('title_container_margin_right')] ?? config.title_container_margin_right}
+                                value={
+                                  config[
+                                    getStyleKey('title_container_margin_right')
+                                  ] ?? config.title_container_margin_right
+                                }
                                 onChange={(v) =>
                                   updateConfig(
                                     getStyleKey('title_container_margin_right'),
@@ -4364,9 +4707,15 @@ export default function Customize() {
                                 { label: 'Center', value: 'center' },
                                 { label: 'Right', value: 'right' },
                               ]}
-                              value={config[getStyleKey('description_align')] || 'left'}
+                              value={
+                                config[getStyleKey('description_align')] ||
+                                'left'
+                              }
                               onChange={(v) =>
-                                updateConfig(getStyleKey('description_align'), v)
+                                updateConfig(
+                                  getStyleKey('description_align'),
+                                  v
+                                )
                               }
                             />
                             <Select
@@ -4379,24 +4728,40 @@ export default function Customize() {
                                 { label: 'Bold (700)', value: '700' },
                               ]}
                               value={String(
-                                config[getStyleKey('description_font_weight')] || config.description_font_weight || '400'
+                                config[
+                                  getStyleKey('description_font_weight')
+                                ] ||
+                                  config.description_font_weight ||
+                                  '400'
                               )}
                               onChange={(v) =>
-                                updateConfig(getStyleKey('description_font_weight'), v)
+                                updateConfig(
+                                  getStyleKey('description_font_weight'),
+                                  v
+                                )
                               }
                             />
                             <PxField
                               label="Description Size"
-                              value={config[getStyleKey('description_size')] ?? config.description_size}
+                              value={
+                                config[getStyleKey('description_size')] ??
+                                config.description_size
+                              }
                               onChange={(v) =>
                                 updateConfig(getStyleKey('description_size'), v)
                               }
                             />
                             <ColorPickerField
                               label="Description Color"
-                              value={config[getStyleKey('description_color')] || config.description_color}
+                              value={
+                                config[getStyleKey('description_color')] ||
+                                config.description_color
+                              }
                               onChange={(v) =>
-                                updateConfig(getStyleKey('description_color'), v)
+                                updateConfig(
+                                  getStyleKey('description_color'),
+                                  v
+                                )
                               }
                             />
                           </div>
@@ -4419,10 +4784,18 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('description_container_padding_top')] ?? config.description_container_padding_top}
+                                value={
+                                  config[
+                                    getStyleKey(
+                                      'description_container_padding_top'
+                                    )
+                                  ] ?? config.description_container_padding_top
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_padding_top'),
+                                    getStyleKey(
+                                      'description_container_padding_top'
+                                    ),
                                     v
                                   )
                                 }
@@ -4430,11 +4803,18 @@ export default function Customize() {
                               <PxField
                                 label="Bottom"
                                 value={
-                                  config[getStyleKey('description_container_padding_bottom')] ?? config.description_container_padding_bottom
+                                  config[
+                                    getStyleKey(
+                                      'description_container_padding_bottom'
+                                    )
+                                  ] ??
+                                  config.description_container_padding_bottom
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_padding_bottom'),
+                                    getStyleKey(
+                                      'description_container_padding_bottom'
+                                    ),
                                     v
                                   )
                                 }
@@ -4442,11 +4822,17 @@ export default function Customize() {
                               <PxField
                                 label="Left"
                                 value={
-                                  config[getStyleKey('description_container_padding_left')] ?? config.description_container_padding_left
+                                  config[
+                                    getStyleKey(
+                                      'description_container_padding_left'
+                                    )
+                                  ] ?? config.description_container_padding_left
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_padding_left'),
+                                    getStyleKey(
+                                      'description_container_padding_left'
+                                    ),
                                     v
                                   )
                                 }
@@ -4454,11 +4840,18 @@ export default function Customize() {
                               <PxField
                                 label="Right"
                                 value={
-                                  config[getStyleKey('description_container_padding_right')] ?? config.description_container_padding_right
+                                  config[
+                                    getStyleKey(
+                                      'description_container_padding_right'
+                                    )
+                                  ] ??
+                                  config.description_container_padding_right
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_padding_right'),
+                                    getStyleKey(
+                                      'description_container_padding_right'
+                                    ),
                                     v
                                   )
                                 }
@@ -4484,10 +4877,18 @@ export default function Customize() {
                             >
                               <PxField
                                 label="Top"
-                                value={config[getStyleKey('description_container_margin_top')] ?? config.description_container_margin_top}
+                                value={
+                                  config[
+                                    getStyleKey(
+                                      'description_container_margin_top'
+                                    )
+                                  ] ?? config.description_container_margin_top
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_margin_top'),
+                                    getStyleKey(
+                                      'description_container_margin_top'
+                                    ),
                                     v
                                   )
                                 }
@@ -4495,21 +4896,36 @@ export default function Customize() {
                               <PxField
                                 label="Bottom"
                                 value={
-                                  config[getStyleKey('description_container_margin_bottom')] ?? config.description_container_margin_bottom
+                                  config[
+                                    getStyleKey(
+                                      'description_container_margin_bottom'
+                                    )
+                                  ] ??
+                                  config.description_container_margin_bottom
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_margin_bottom'),
+                                    getStyleKey(
+                                      'description_container_margin_bottom'
+                                    ),
                                     v
                                   )
                                 }
                               />
                               <PxField
                                 label="Left"
-                                value={config[getStyleKey('description_container_margin_left')] ?? config.description_container_margin_left}
+                                value={
+                                  config[
+                                    getStyleKey(
+                                      'description_container_margin_left'
+                                    )
+                                  ] ?? config.description_container_margin_left
+                                }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_margin_left'),
+                                    getStyleKey(
+                                      'description_container_margin_left'
+                                    ),
                                     v
                                   )
                                 }
@@ -4517,11 +4933,17 @@ export default function Customize() {
                               <PxField
                                 label="Right"
                                 value={
-                                  config[getStyleKey('description_container_margin_right')] ?? config.description_container_margin_right
+                                  config[
+                                    getStyleKey(
+                                      'description_container_margin_right'
+                                    )
+                                  ] ?? config.description_container_margin_right
                                 }
                                 onChange={(v) =>
                                   updateConfig(
-                                    getStyleKey('description_container_margin_right'),
+                                    getStyleKey(
+                                      'description_container_margin_right'
+                                    ),
                                     v
                                   )
                                 }
@@ -4565,16 +4987,80 @@ export default function Customize() {
                         />
                       </div>
                     </div>
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTop: '1px solid #eee',
+                      }}
+                    >
+                      <Checkbox
+                        label="Enable Product Hover Effect"
+                        checked={!!config.enable_product_hover}
+                        onChange={(v) =>
+                          updateConfig('enable_product_hover', v)
+                        }
+                      />
+                      {config.enable_product_hover && (
+                        <div style={{ marginTop: 10 }}>
+                          <Select
+                            label="Hover Mode"
+                            options={[
+                              {
+                                label: 'Show Product Description',
+                                value: 'description',
+                              },
+                              {
+                                label: 'Show Second Product Image',
+                                value: 'second_image',
+                              },
+                            ]}
+                            value={config.product_hover_mode || 'second_image'}
+                            onChange={(v) =>
+                              updateConfig('product_hover_mode', v)
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
                   </FormLayout>
                 </CollapsibleCard>
 
                 {/* Variants & Actions Section */}
                 <CollapsibleCard
-                  title="Variants & Actions"
+                  title="Hover, Variants & Actions"
                   expanded={expandedSections.variants}
                   onToggle={() => toggleSection('variants')}
                 >
                   <FormLayout>
+                    <Checkbox
+                      label="Enable Product Card Hover Effect"
+                      checked={!!config.enable_product_hover}
+                      onChange={(v) => updateConfig('enable_product_hover', v)}
+                    />
+                    {config.enable_product_hover && (
+                      <Select
+                        label="Hover Trigger Action"
+                        options={[
+                          { label: 'Show Second Image', value: 'second_image' },
+                          { label: 'Show Description', value: 'description' },
+                        ]}
+                        value={config.product_hover_mode || 'second_image'}
+                        onChange={(v) => updateConfig('product_hover_mode', v)}
+                      />
+                    )}
+                    <Select
+                      label="Preview Icon Visibility"
+                      options={[
+                        { label: 'Show On Hover', value: 'hover' },
+                        { label: 'Always Visible', value: 'static' },
+                      ]}
+                      value={config.preview_icon_visibility || 'hover'}
+                      onChange={(v) =>
+                        updateConfig('preview_icon_visibility', v)
+                      }
+                    />
                     <Select
                       label="Variant Display"
                       options={[
@@ -4661,9 +5147,15 @@ export default function Customize() {
                           />
                           <PxField
                             label="Font Size"
-                            value={config[getStyleKey('variant_select_font_size')] || 13}
+                            value={
+                              config[getStyleKey('variant_select_font_size')] ||
+                              13
+                            }
                             onChange={(v) =>
-                              updateConfig(getStyleKey('variant_select_font_size'), v)
+                              updateConfig(
+                                getStyleKey('variant_select_font_size'),
+                                v
+                              )
                             }
                             min={10}
                             max={20}
@@ -5750,8 +6242,16 @@ export default function Customize() {
                       <Text variant="headingSm" as="h6">
                         Custom CSS
                       </Text>
-                      <p style={{ fontSize: '13px', color: '#6d7175', marginBottom: '8px', marginTop: '4px' }}>
-                        Add your own CSS to further customize the design. These styles will be applied to the storefront.
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: '#6d7175',
+                          marginBottom: '8px',
+                          marginTop: '4px',
+                        }}
+                      >
+                        Add your own CSS to further customize the design. These
+                        styles will be applied to the storefront.
                       </p>
                       <TextField
                         multiline={10}
@@ -6579,47 +7079,97 @@ function ComboPreview({
     : (config.description_size ?? 15);
 
   const headingColor = isMobile
-    ? (config.heading_color_mobile || config.heading_color)
+    ? config.heading_color_mobile || config.heading_color
     : config.heading_color;
   const descriptionColor = isMobile
-    ? (config.description_color_mobile || config.description_color)
+    ? config.description_color_mobile || config.description_color
     : config.description_color;
 
   const headingFontWeight = isMobile
-    ? (config.heading_font_weight_mobile || config.heading_font_weight || 700)
-    : (config.heading_font_weight || 700);
+    ? config.heading_font_weight_mobile || config.heading_font_weight || 700
+    : config.heading_font_weight || 700;
   const descriptionFontWeight = isMobile
-    ? (config.description_font_weight_mobile || config.description_font_weight || 400)
-    : (config.description_font_weight || 400);
+    ? config.description_font_weight_mobile ||
+      config.description_font_weight ||
+      400
+    : config.description_font_weight || 400;
 
   const headingAlign = isMobile
-    ? (config.heading_align_mobile || config.heading_align || 'left')
-    : (config.heading_align || 'left');
+    ? config.heading_align_mobile || config.heading_align || 'left'
+    : config.heading_align || 'left';
   const descriptionAlign = isMobile
-    ? (config.description_align_mobile || config.description_align || 'left')
-    : (config.description_align || 'left');
+    ? config.description_align_mobile || config.description_align || 'left'
+    : config.description_align || 'left';
 
   // Padding & Margins
   const titlePadding = {
-    top: isMobile ? (config.title_container_padding_top_mobile ?? config.title_container_padding_top) : config.title_container_padding_top,
-    right: isMobile ? (config.title_container_padding_right_mobile ?? config.title_container_padding_right) : config.title_container_padding_right,
-    bottom: isMobile ? (config.title_container_padding_bottom_mobile ?? config.title_container_padding_bottom) : config.title_container_padding_bottom,
-    left: isMobile ? (config.title_container_padding_left_mobile ?? config.title_container_padding_left) : config.title_container_padding_left,
-    marginTop: isMobile ? (config.title_container_margin_top_mobile ?? config.title_container_margin_top) : config.title_container_margin_top,
-    marginRight: isMobile ? (config.title_container_margin_right_mobile ?? config.title_container_margin_right) : config.title_container_margin_right,
-    marginBottom: isMobile ? (config.title_container_margin_bottom_mobile ?? config.title_container_margin_bottom) : config.title_container_margin_bottom,
-    marginLeft: isMobile ? (config.title_container_margin_left_mobile ?? config.title_container_margin_left) : config.title_container_margin_left
+    top: isMobile
+      ? (config.title_container_padding_top_mobile ??
+        config.title_container_padding_top)
+      : config.title_container_padding_top,
+    right: isMobile
+      ? (config.title_container_padding_right_mobile ??
+        config.title_container_padding_right)
+      : config.title_container_padding_right,
+    bottom: isMobile
+      ? (config.title_container_padding_bottom_mobile ??
+        config.title_container_padding_bottom)
+      : config.title_container_padding_bottom,
+    left: isMobile
+      ? (config.title_container_padding_left_mobile ??
+        config.title_container_padding_left)
+      : config.title_container_padding_left,
+    marginTop: isMobile
+      ? (config.title_container_margin_top_mobile ??
+        config.title_container_margin_top)
+      : config.title_container_margin_top,
+    marginRight: isMobile
+      ? (config.title_container_margin_right_mobile ??
+        config.title_container_margin_right)
+      : config.title_container_margin_right,
+    marginBottom: isMobile
+      ? (config.title_container_margin_bottom_mobile ??
+        config.title_container_margin_bottom)
+      : config.title_container_margin_bottom,
+    marginLeft: isMobile
+      ? (config.title_container_margin_left_mobile ??
+        config.title_container_margin_left)
+      : config.title_container_margin_left,
   };
 
   const descriptionPadding = {
-    top: isMobile ? (config.description_container_padding_top_mobile ?? config.description_container_padding_top) : config.description_container_padding_top,
-    right: isMobile ? (config.description_container_padding_right_mobile ?? config.description_container_padding_right) : config.description_container_padding_right,
-    bottom: isMobile ? (config.description_container_padding_bottom_mobile ?? config.description_container_padding_bottom) : config.description_container_padding_bottom,
-    left: isMobile ? (config.description_container_padding_left_mobile ?? config.description_container_padding_left) : config.description_container_padding_left,
-    marginTop: isMobile ? (config.description_container_margin_top_mobile ?? config.description_container_margin_top) : config.description_container_margin_top,
-    marginRight: isMobile ? (config.description_container_margin_right_mobile ?? config.description_container_margin_right) : config.description_container_margin_right,
-    marginBottom: isMobile ? (config.description_container_margin_bottom_mobile ?? config.description_container_margin_bottom) : config.description_container_margin_bottom,
-    marginLeft: isMobile ? (config.description_container_margin_left_mobile ?? config.description_container_margin_left) : config.description_container_margin_left
+    top: isMobile
+      ? (config.description_container_padding_top_mobile ??
+        config.description_container_padding_top)
+      : config.description_container_padding_top,
+    right: isMobile
+      ? (config.description_container_padding_right_mobile ??
+        config.description_container_padding_right)
+      : config.description_container_padding_right,
+    bottom: isMobile
+      ? (config.description_container_padding_bottom_mobile ??
+        config.description_container_padding_bottom)
+      : config.description_container_padding_bottom,
+    left: isMobile
+      ? (config.description_container_padding_left_mobile ??
+        config.description_container_padding_left)
+      : config.description_container_padding_left,
+    marginTop: isMobile
+      ? (config.description_container_margin_top_mobile ??
+        config.description_container_margin_top)
+      : config.description_container_margin_top,
+    marginRight: isMobile
+      ? (config.description_container_margin_right_mobile ??
+        config.description_container_margin_right)
+      : config.description_container_margin_right,
+    marginBottom: isMobile
+      ? (config.description_container_margin_bottom_mobile ??
+        config.description_container_margin_bottom)
+      : config.description_container_margin_bottom,
+    marginLeft: isMobile
+      ? (config.description_container_margin_left_mobile ??
+        config.description_container_margin_left)
+      : config.description_container_margin_left,
   };
 
   const productCardPadding = config.product_card_padding ?? 10;
@@ -7424,6 +7974,7 @@ function ComboPreview({
   const ProductCardItem = ({ product, source = 'all' }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [showPopup, setShowPopup] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
 
     const hasVariants = product.variants && product.variants.length > 1;
     const selectedVariantId =
@@ -7436,6 +7987,13 @@ function ComboPreview({
     const isSelected = selectedProducts.some(
       (p) => String(p.id) === String(product.id) && p.source === source
     );
+    const previewVisibility = config.preview_icon_visibility || 'static';
+    const showPreviewIcon =
+      previewVisibility === 'static' || isHovered || isMobile;
+    const previewImages = (product.images?.nodes || [])
+      .slice(1, 4)
+      .map((img) => img?.url)
+      .filter(Boolean);
 
     const onAddClick = () => {
       if (isSelected) {
@@ -7621,8 +8179,93 @@ function ComboPreview({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              transition: 'transform 0.3s ease, opacity 0.3s ease',
+              transform:
+                isHovered && config.enable_product_hover
+                  ? 'scale(1.05)'
+                  : 'scale(1)',
+              opacity: isHovered && config.enable_product_hover ? 0 : 1,
             }}
           />
+
+          {showPreviewIcon && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPreviewModal(true);
+              }}
+              title="Preview Product"
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                width: 34,
+                height: 34,
+                border: 'none',
+                borderRadius: '999px',
+                background: 'rgba(17,17,17,0.82)',
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 5,
+              }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                style={{ width: 18, height: 18, fill: 'currentColor' }}
+              >
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Product Hover Overlay Elements */}
+          {config.enable_product_hover && isHovered && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                background: 'rgba(255, 255, 255, 0.95)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '12px',
+                boxSizing: 'border-box',
+                textAlign: 'center',
+                zIndex: 1,
+              }}
+            >
+              {config.product_hover_mode === 'second_image' &&
+              product.secondImageSrc ? (
+                <img
+                  src={product.secondImageSrc}
+                  alt="Hover view"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : config.product_hover_mode === 'description' &&
+                product.descriptionHtml ? (
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: '#333',
+                    lineHeight: 1.5,
+                    fontWeight: 500,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 6,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
+                />
+              ) : null}
+            </div>
+          )}
 
           {/* Hover Variants Popup */}
           {hasVariants &&
@@ -7674,6 +8317,89 @@ function ComboPreview({
               </div>
             )}
         </div>
+
+        <Modal
+          open={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          title={product.title || 'Product Preview'}
+          large
+        >
+          <Modal.Section>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1fr',
+                gap: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile
+                    ? 'repeat(2, minmax(0, 1fr))'
+                    : 'repeat(3, minmax(0, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {previewImages.length ? (
+                  previewImages.map((src, idx) => (
+                    <div
+                      key={`${product.id}-preview-${idx}`}
+                      style={{
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#f6f6f7',
+                        minHeight: 100,
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={`${product.title} preview ${idx + 2}`}
+                        loading="lazy"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      border: '1px dashed #c9cccf',
+                      borderRadius: 8,
+                      padding: 16,
+                      textAlign: 'center',
+                      color: '#6d7175',
+                    }}
+                  >
+                    Additional product images are not available.
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+                  {product.title}
+                </div>
+                <div
+                  style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}
+                >
+                  Rs.{selectedVariant?.price || 0}
+                </div>
+                <div
+                  style={{ fontSize: 13, lineHeight: 1.6, color: '#3d3d3d' }}
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      product.descriptionHtml || 'No description available.',
+                  }}
+                />
+              </div>
+            </div>
+          </Modal.Section>
+        </Modal>
 
         <div style={{ padding: productCardPadding }}>
           {/* Static Variants Display - Below Image */}
@@ -9101,24 +9827,143 @@ function ComboPreview({
                     )}
                   </div>
                 ) : config.grid_layout_type === 'slider' ? (
-                  /* Slider Mockup */
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '12px',
-                      overflowX: 'auto',
-                      paddingBottom: '10px',
-                      scrollbarWidth: 'none',
-                    }}
-                  >
-                    {stepViewProducts.map((p) => (
-                      <div
-                        key={p.id}
-                        style={{ minWidth: '160px', width: '160px' }}
-                      >
-                        <ProductCardItem product={p} source={`step_${step}`} />
-                      </div>
-                    ))}
+                  /* Slider Preview */
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '12px',
+                        overflowX: 'auto',
+                        paddingBottom: config.show_scrollbar ? '10px' : '0',
+                        scrollbarWidth: config.show_scrollbar ? 'auto' : 'none',
+                        msOverflowStyle: config.show_scrollbar
+                          ? 'auto'
+                          : 'none',
+                        scrollBehavior: 'smooth',
+                      }}
+                      className="preview-slider-track"
+                    >
+                      <style>{`
+                        .preview-slider-track::-webkit-scrollbar {
+                          display: ${config.show_scrollbar ? 'block' : 'none'};
+                          height: ${config.scrollbar_thickness || 4}px;
+                        }
+                        .preview-slider-track::-webkit-scrollbar-thumb {
+                          background: ${config.scrollbar_color || '#dddddd'};
+                          border-radius: 10px;
+                        }
+                      `}</style>
+                      {stepViewProducts.map((p) => (
+                        <div
+                          key={p.id}
+                          style={{ minWidth: '160px', width: '160px' }}
+                        >
+                          <ProductCardItem
+                            product={p}
+                            source={`step_${step}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {config.show_nav_arrows && (
+                      <>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const track =
+                              e.currentTarget.parentElement.querySelector(
+                                '.preview-slider-track'
+                              );
+                            if (track)
+                              track.scrollBy({
+                                left: -250,
+                                behavior: 'smooth',
+                              });
+                          }}
+                          style={{
+                            position: 'absolute',
+                            left:
+                              config.arrow_position === 'outside'
+                                ? '-22px'
+                                : '8px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: `${config.arrow_size || 36}px`,
+                            height: `${config.arrow_size || 36}px`,
+                            background: config.arrow_bg_color || '#000',
+                            color: config.arrow_color || '#fff',
+                            borderRadius: `${config.arrow_border_radius || 50}${config.arrow_border_radius === 50 ? '%' : 'px'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+                            zIndex: 10,
+                            cursor: 'pointer',
+                            opacity: config.arrow_opacity ?? 0.9,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M15 18l-6-6 6-6" />
+                          </svg>
+                        </div>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const track =
+                              e.currentTarget.parentElement.querySelector(
+                                '.preview-slider-track'
+                              );
+                            if (track)
+                              track.scrollBy({ left: 250, behavior: 'smooth' });
+                          }}
+                          style={{
+                            position: 'absolute',
+                            right:
+                              config.arrow_position === 'outside'
+                                ? '-22px'
+                                : '8px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: `${config.arrow_size || 36}px`,
+                            height: `${config.arrow_size || 36}px`,
+                            background: config.arrow_bg_color || '#000',
+                            color: config.arrow_color || '#fff',
+                            borderRadius: `${config.arrow_border_radius || 50}${config.arrow_border_radius === 50 ? '%' : 'px'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+                            zIndex: 10,
+                            cursor: 'pointer',
+                            opacity: config.arrow_opacity ?? 0.9,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   /* Grid Layout */

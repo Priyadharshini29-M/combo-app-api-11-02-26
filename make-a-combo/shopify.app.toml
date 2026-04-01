@@ -2,7 +2,7 @@
 
 client_id = "f5c2cbb3e511079397eeaa68d16259ae"
 name = "Make-a-combo"
-application_url = "https://136d-103-130-91-53.ngrok-free.app"
+application_url = "https://2f96-103-130-91-53.ngrok-free.app"
 embedded = true
 
 [build]
@@ -21,13 +21,13 @@ api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_content,write_content,read_script_tags,write_script_tags,write_discounts,read_discounts,read_themes"
+scopes = "write_products,read_content,write_content,read_script_tags,write_script_tags,write_discounts,read_discounts,read_themes,read_orders"
 
 [auth]
 redirect_urls = [
-  "https://136d-103-130-91-53.ngrok-free.app/auth/callback",
-  "https://136d-103-130-91-53.ngrok-free.app/auth/shopify/callback",
-  "https://136d-103-130-91-53.ngrok-free.app/api/auth/callback"
+  "https://2f96-103-130-91-53.ngrok-free.app/auth/callback",
+  "https://2f96-103-130-91-53.ngrok-free.app/auth/shopify/callback",
+  "https://2f96-103-130-91-53.ngrok-free.app/api/auth/callback"
 ]
 
 [app_proxy]

@@ -14,6 +14,7 @@ import { NavMenu } from '@shopify/app-bridge-react';
 import polarisStyles from '@shopify/polaris/build/esm/styles.css?url';
 import { authenticate } from '../shopify.server';
 import { formatToIST } from '../utils/api-helpers';
+import { readAppEmbedState } from '../utils/app-embed.server';
 import globalStyles from '../global.css?url';
 
 export const links = () => [
@@ -22,7 +23,7 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   // Unified GraphQL Query for Shop, Themes, and App Subscriptions
   const query = `
@@ -34,9 +35,6 @@ export const loader = async ({ request }) => {
         myshopifyDomain
         plan {
           displayName
-        }
-        metafield(namespace: "make_a_combo", key: "app_url") {
-          value
         }
       }
       themes(first: 50) {
@@ -76,21 +74,25 @@ export const loader = async ({ request }) => {
     const activeTheme = themes.find((t) => t.role === 'MAIN') || themes[0];
     const appPlan = subscriptions.length > 0 ? subscriptions[0].name : 'Free';
 
-    const APP_URL = process.env.SHOPIFY_APP_URL || '';
-    const appUrlMetafield = shop.metafield?.value;
-    const isEnabled =
-      !!appUrlMetafield &&
-      appUrlMetafield !== 'DISABLED' &&
-      appUrlMetafield !== 'MISSING';
-    console.log(
-      '[App Loader] Metafield Value:',
-      appUrlMetafield,
-      'Status:',
-      isEnabled
-    );
+    let isEnabled = false;
+    try {
+      const embedState = await readAppEmbedState({
+        admin,
+        session: {
+          shop: session.shop || shop.myshopifyDomain,
+          accessToken: session.accessToken,
+        },
+        blockHints: ['combo_builder', 'combo-builder', 'combo builder'],
+      });
+      isEnabled = embedState.isEnabled === true;
+      console.log('[App Loader] App Embed status:', isEnabled);
+    } catch (embedErr) {
+      console.error('[App Loader] Embed state read failed:', embedErr.message);
+    }
 
     // Proactive Sync: Ensure the App URL metafield is always up to date
     // This solves the issue of stale ngrok URLs in the storefront
+    const APP_URL = process.env.SHOPIFY_APP_URL || '';
     if (APP_URL && shop.id) {
       try {
         await admin.graphql(
@@ -182,6 +184,9 @@ export default function App() {
           </Link>
           <Link to="/app/discountengine" prefetch="intent">
             Discount Engine
+          </Link>
+          <Link to="/app/analytics" prefetch="intent">
+            Analytics
           </Link>
           <Link to="/app/plan" prefetch="intent">
             Subscription Plan

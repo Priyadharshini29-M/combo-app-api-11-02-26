@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { getAnalytics, getShopifyDiscounts } from "../utils/api-helpers";
+import { getAnalytics, getShopifyDiscounts, getShopifyOrders } from "../utils/api-helpers";
 
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
@@ -45,7 +45,7 @@ export const loader = async ({ request }) => {
   console.log(`[API Analytics] Loader triggered for ${shop}`);
 
   const [analyticsData, shopifyDiscounts] = await Promise.all([
-    getAnalytics(shop, computedStart, computedEnd, dateRange),
+    getAnalytics(shop, computedStart, computedEnd, dateRange, admin),
     getShopifyDiscounts(admin),
   ]);
 
@@ -131,7 +131,7 @@ export const action = async ({ request }) => {
     }
 
     const [analyticsData, shopifyDiscounts] = await Promise.all([
-      getAnalytics(shop, computedStart, computedEnd, dateRange),
+      getAnalytics(shop, computedStart, computedEnd, dateRange, admin),
       getShopifyDiscounts(admin),
     ]);
 

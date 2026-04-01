@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { json } from '@remix-run/node';
-import { useFetcher, useLoaderData, useNavigate, Link } from '@remix-run/react';
+import { useFetcher, useLoaderData, useNavigate, Link, useNavigation } from '@remix-run/react';
 import {
   Page,
   Card,
@@ -333,6 +333,9 @@ export default function TemplatesPage() {
   } = useLoaderData();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const navigation = useNavigation();
+
+  const isMainNavigating = navigation.state !== 'idle' && (navigation.location?.pathname?.includes('/app/customize'));
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -356,7 +359,18 @@ export default function TemplatesPage() {
   const [templatesLoading, setTemplatesLoading] = useState(false);
 
   // Loading state for preview card (edit)
-  const [editLoadingId, setEditLoadingId] = useState(null);
+  const [navigatingId, setNavigatingId] = useState(null);
+
+  useEffect(() => {
+    if (navigation.state === 'idle') {
+      setNavigatingId(null);
+    }
+  }, [navigation.state]);
+
+  const handleEditNavigate = (id) => {
+    setNavigatingId(id);
+    navigate(`/app/customize?templateId=${id}`);
+  };
 
   // Filter states
   const [datePopoverActive, setDatePopoverActive] = useState(false);
@@ -595,11 +609,8 @@ export default function TemplatesPage() {
 
   // Helper to clear selection when editing
   const handleEditClick = (id, navCallback) => {
-    setEditLoadingId(id);
-    setTimeout(() => {
-      setEditLoadingId(null);
-      navCallback();
-    }, 800);
+    setNavigatingId(id);
+    navCallback();
   };
 
   // Handler for layout card click
@@ -650,6 +661,7 @@ export default function TemplatesPage() {
         </div>
       }
     >
+      <div className={`global-loading-bar ${isMainNavigating ? 'loading' : ''}`} />
       <TitleBar title="Templates" />
       <style>{`
         .custom-tabs-container {
@@ -697,14 +709,23 @@ export default function TemplatesPage() {
 
         /* Column-Specific Alignment & Widths */
         
-        /* col 1: Checkbox (Balanced Padding) */
-        .unique-table-wrapper th:nth-child(1),
-        .unique-table-wrapper td:nth-child(1) {
-            width: 70px !important;
-            min-width: 70px !important;
+        /* col 1: Checkbox — use high-specificity to beat the tbody td reset */
+        .unique-table-wrapper table th:nth-child(1),
+        .unique-table-wrapper table td:nth-child(1),
+        .unique-table-wrapper tbody tr td:first-child {
+            width: 80px !important;
+            min-width: 80px !important;
             text-align: center !important;
-            padding-left: 32px !important;
+            padding-left: 20px !important;
             padding-right: 0 !important;
+        }
+
+        /* Target Polaris's internal checkbox wrapper directly */
+        .unique-table-wrapper .Polaris-IndexTable__CheckboxWrapper,
+        .unique-table-wrapper .Polaris-Checkbox,
+        .unique-table-wrapper .Polaris-IndexTable__TableHeading--first .Polaris-Checkbox,
+        .unique-table-wrapper [class*='CheckboxWrapper'] {
+            margin-left: 12px !important;
         }
 
         /* Rows: White cards with shadow */
@@ -781,8 +802,34 @@ export default function TemplatesPage() {
             padding-right: 32px !important;
         }
 
-        /* Action Buttons Styling - Premium Rounded Squares */
-        .unique-table-wrapper .Polaris-Button {
+        /* Reset checkbox elements to their natural Polaris appearance */
+        .unique-table-wrapper .Polaris-Checkbox,
+        .unique-table-wrapper .Polaris-Checkbox__Input,
+        .unique-table-wrapper .Polaris-Checkbox__Backdrop,
+        .unique-table-wrapper .Polaris-Checkbox__Icon,
+        .unique-table-wrapper .Polaris-Choice,
+        .unique-table-wrapper .Polaris-Choice__Control,
+        .unique-table-wrapper [class*='Checkbox'] button,
+        .unique-table-wrapper [class*='Checkbox'] .Polaris-Button,
+        .unique-table-wrapper .Polaris-IndexTable__Checkbox .Polaris-Button,
+        .unique-table-wrapper .Polaris-IndexTable__CheckboxWrapper .Polaris-Button,
+        .unique-table-wrapper td:first-child .Polaris-Button,
+        .unique-table-wrapper th:first-child .Polaris-Button {
+            width: auto !important;
+            height: auto !important;
+            min-width: unset !important;
+            min-height: unset !important;
+            border: none !important;
+            border-radius: unset !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: unset !important;
+            transform: none !important;
+        }
+
+        /* Action Buttons Styling - Premium Rounded Squares (scoped to action cells only) */
+        .unique-table-wrapper td:nth-child(6) .Polaris-Button,
+        .unique-table-wrapper [data-action-cell] .Polaris-Button {
             border-radius: 10px !important;
             border: 1px solid #e1e3e5 !important;
             background: #fff !important;
@@ -796,7 +843,8 @@ export default function TemplatesPage() {
             color: #1a1a1a !important;
         }
 
-        .unique-table-wrapper .Polaris-Button:hover {
+        .unique-table-wrapper td:nth-child(6) .Polaris-Button:hover,
+        .unique-table-wrapper [data-action-cell] .Polaris-Button:hover {
             background: #1a1a1a !important;
             border-color: #1a1a1a !important;
             color: #fff !important;
@@ -804,16 +852,19 @@ export default function TemplatesPage() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .unique-table-wrapper .Polaris-Button .Polaris-Icon {
+        .unique-table-wrapper td:nth-child(6) .Polaris-Button .Polaris-Icon,
+        .unique-table-wrapper [data-action-cell] .Polaris-Button .Polaris-Icon {
             margin: 0 !important;
         }
 
-        .unique-table-wrapper .Polaris-Button:hover .Polaris-Icon {
+        .unique-table-wrapper td:nth-child(6) .Polaris-Button:hover .Polaris-Icon,
+        .unique-table-wrapper [data-action-cell] .Polaris-Button:hover .Polaris-Icon {
              color: #fff !important;
         }
 
         /* Destructive button specifically */
-        .unique-table-wrapper .Polaris-Button--destructive:hover {
+        .unique-table-wrapper td:nth-child(6) .Polaris-Button--destructive:hover,
+        .unique-table-wrapper [data-action-cell] .Polaris-Button--destructive:hover {
             background: #d32f2f !important;
             border-color: #d32f2f !important;
         }
@@ -1015,9 +1066,27 @@ export default function TemplatesPage() {
           margin-top: auto; /* Push to bottom */
         }
         /* Custom DatePicker Styling to make it look a bit bigger */
-        .date-range-main .Polaris-DatePicker {
-            width: 100% !important;
-            max-width: 100% !important;
+        /* Loading Bar */
+        .global-loading-bar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: #0070f3;
+          z-index: 9999;
+          transform: scaleX(0);
+          transform-origin: left;
+          transition: transform 0.2s ease;
+        }
+        .global-loading-bar.loading {
+          transform: scaleX(1);
+          animation: loadingBar 2s infinite linear;
+        }
+        @keyframes loadingBar {
+          0% { transform: scaleX(0); }
+          50% { transform: scaleX(0.7); }
+          100% { transform: scaleX(1); }
         }
       `}</style>
       <div
@@ -1229,13 +1298,13 @@ export default function TemplatesPage() {
                               <Button
                                 size="slim"
                                 icon={MaximizeIcon}
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  handleEditClick(t.id, () => navigate(`/app/customize?templateId=${t.id}`));
+                                  handleEditNavigate(t.id);
                                 }}
-                                loading={editLoadingId === t.id}
-                                disabled={editLoadingId === t.id || templatesLoading}
+                                loading={navigatingId === t.id}
+                                disabled={isMainNavigating}
                               >
                                 Edit
                               </Button>
@@ -1572,7 +1641,7 @@ export default function TemplatesPage() {
             resourceName={{ singular: 'template', plural: 'templates' }}
             itemCount={filteredTemplates.length}
             selectedItemsCount={
-              (editLoadingId || templatesLoading)
+              (navigatingId || templatesLoading)
                 ? 0
                 : selectedResourceIds.length === 0
                   ? 0
@@ -1581,7 +1650,7 @@ export default function TemplatesPage() {
                     : selectedResourceIds.length
             }
             onSelectionChange={(ids) => {
-              if (editLoadingId || templatesLoading) {
+              if (navigatingId || templatesLoading) {
                 setSelectedResourceIds([]);
                 return;
               }
@@ -1606,6 +1675,29 @@ export default function TemplatesPage() {
                 key={String(t.id)}
                 id={String(t.id)}
                 position={idx}
+                selected={selectedResourceIds.includes(String(t.id))}
+                onClick={(e) => {
+                  // Only toggle selection when clicking the row background,
+                  // NOT when a child interactive element (button, link) is clicked.
+                  // This prevents any action button from modifying checkbox state.
+                  const tag = e.target.tagName?.toLowerCase();
+                  const isInteractiveChild =
+                    tag === 'button' ||
+                    tag === 'a' ||
+                    tag === 'input' ||
+                    e.target.closest('button') ||
+                    e.target.closest('a') ||
+                    e.target.closest('[data-action-cell]');
+                  if (isInteractiveChild) return;
+
+                  // Toggle selection on plain row click
+                  setSelectedResourceIds((prev) => {
+                    const id = String(t.id);
+                    return prev.includes(id)
+                      ? prev.filter((x) => x !== id)
+                      : [...prev, id];
+                  });
+                }}
               >
                 <IndexTable.Cell>
                   <InlineStack gap="400" blockAlign="center">
@@ -1684,47 +1776,59 @@ export default function TemplatesPage() {
                     {t.active ? 'Active' : 'Inactive'}
                   </Badge>
                 </IndexTable.Cell>
+                {/* data-action-cell marks this cell so the row onClick guard can detect it */}
                 <IndexTable.Cell>
-                  <InlineStack gap="100" wrap={false} align="center">
-                    <Button
-                      icon={EditIcon}
-                      onClick={() => handleEditClick(t.id, () => navigate(`/app/customize?templateId=${t.id}`))}
-                      accessibilityLabel="Edit"
-                      loading={editLoadingId === t.id}
-                      disabled={editLoadingId === t.id || templatesLoading}
-                    />
-                    <button
-                      className={`pill-btn ${t.active ? 'deactivate' : 'activate'}`}
-                      onClick={() => {
-                        setTargetTemplate(t);
-                        setToggleModalOpen(true);
-                      }}
-                    >
-                      {t.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      className="view-page-btn"
-                      disabled={!t.page_url}
-                      title={t.page_url ? `Preview /pages/${t.page_url}` : 'No page linked'}
-                      onClick={() => {
-                        if (t.page_url) {
-                          const url = `https://${shop}/pages/${t.page_url}?preview`;
-                          window.open(url, '_blank');
-                        }
-                      }}
-                    >
-                      👁 Preview
-                    </button>
-                    <Button
-                      icon={DeleteIcon}
-                      destructive
-                      onClick={() => {
-                        setTargetTemplate(t);
-                        setDeleteModalOpen(true);
-                      }}
-                      accessibilityLabel="Delete"
-                    />
-                  </InlineStack>
+                  <div
+                    data-action-cell="true"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <InlineStack gap="100" wrap={false} align="center">
+                      <Button
+                        icon={EditIcon}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditNavigate(t.id);
+                        }}
+                        accessibilityLabel="Edit"
+                        loading={navigatingId === t.id}
+                        disabled={isMainNavigating}
+                      />
+                      <button
+                        className={`pill-btn ${t.active ? 'deactivate' : 'activate'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTargetTemplate(t);
+                          setToggleModalOpen(true);
+                        }}
+                      >
+                        {t.active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="view-page-btn"
+                        disabled={!t.page_url}
+                        title={t.page_url ? `Preview /pages/${t.page_url}` : 'No page linked'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (t.page_url) {
+                            const url = `https://${shop}/pages/${t.page_url}?preview`;
+                            window.open(url, '_blank');
+                          }
+                        }}
+                      >
+                        👁 Preview
+                      </button>
+                      <Button
+                        icon={DeleteIcon}
+                        destructive
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTargetTemplate(t);
+                          setDeleteModalOpen(true);
+                        }}
+                        accessibilityLabel="Delete"
+                      />
+                    </InlineStack>
+                  </div>
                 </IndexTable.Cell>
               </IndexTable.Row>
             ))}

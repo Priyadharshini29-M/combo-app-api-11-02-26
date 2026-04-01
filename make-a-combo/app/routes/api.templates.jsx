@@ -262,7 +262,7 @@ export const action = async ({ request }) => {
         status: p.status,
         price: p.variants?.nodes?.[0]?.price || '0.00',
         image: p.featuredMedia?.preview?.image?.url || '',
-        variants: (p.variants?.nodes || []).map(v => ({
+        variants: (p.variants?.nodes || []).map((v) => ({
           id: v.id,
           title: v.title,
           price: v.price,
@@ -318,7 +318,39 @@ export const action = async ({ request }) => {
     );
   }
 
+  const normalizeModalConfig = (cfg) => {
+    const base = cfg && typeof cfg === 'object' ? cfg : {};
+    const toNum = (value, fallback) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    return {
+      ...base,
+      preview_modal_content_gap: Math.max(
+        0,
+        toNum(base.preview_modal_content_gap, 10)
+      ),
+      preview_modal_gallery_ratio: Math.max(
+        0.5,
+        toNum(base.preview_modal_gallery_ratio, 1.45)
+      ),
+      preview_modal_info_ratio: Math.max(
+        0.5,
+        toNum(base.preview_modal_info_ratio, 0.85)
+      ),
+      preview_modal_gallery_columns: Math.max(
+        1,
+        Math.round(toNum(base.preview_modal_gallery_columns, 2))
+      ),
+      preview_modal_show_arrows: base.preview_modal_show_arrows !== false,
+    };
+  };
+
   const { action: actionType, id, data, publishParams } = body;
+  if (data?.config) {
+    data.config = normalizeModalConfig(data.config);
+  }
   let result = null;
   let message = '';
 
@@ -367,15 +399,28 @@ export const action = async ({ request }) => {
       for (let i = 1; i <= 10; i++) {
         const stepHandle = data.config?.[`step_${i}_collection`];
         if (stepHandle) {
-          configSlots.push({ type: 'step', index: i, handle: stepHandle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+          configSlots.push({
+            type: 'step',
+            index: i,
+            handle: stepHandle,
+            limit: parseInt(data.config?.[`step_${i}_limit`]) || null,
+          });
         }
         const colHandle = data.config?.[`col_${i}`];
         if (colHandle) {
-          configSlots.push({ type: 'col', index: i, handle: colHandle, limit: parseInt(data.config?.[`col_${i}_limit`]) || null });
+          configSlots.push({
+            type: 'col',
+            index: i,
+            handle: colHandle,
+            limit: parseInt(data.config?.[`col_${i}_limit`]) || null,
+          });
         }
       }
       if (data.config?.collection_handle) {
-        configSlots.push({ type: 'single', handle: data.config.collection_handle });
+        configSlots.push({
+          type: 'single',
+          handle: data.config.collection_handle,
+        });
       }
 
       if (configSlots.length > 0) {
@@ -384,7 +429,9 @@ export const action = async ({ request }) => {
 
         for (const slot of configSlots) {
           if (!handleCache.has(slot.handle)) {
-            console.log(`[Templates API] 📦 Attempting fetch for: ${slot.handle}`);
+            console.log(
+              `[Templates API] 📦 Attempting fetch for: ${slot.handle}`
+            );
             const collectionId = await fetchCollectionIdByHandle(slot.handle);
             if (collectionId) {
               const prods = await fetchCollectionProducts(collectionId);
@@ -395,7 +442,7 @@ export const action = async ({ request }) => {
           }
 
           const products = handleCache.get(slot.handle) || [];
-          products.forEach(p => {
+          products.forEach((p) => {
             const productClone = { ...p, collection_handle: slot.handle };
             if (slot.type === 'step') {
               productClone.step = slot.index;
@@ -406,8 +453,12 @@ export const action = async ({ request }) => {
         }
         if (allProducts.length > 0) productList = allProducts;
       } else if (data.config?.collection_id) {
-        console.log(`[Templates API] 📦 Fetching products for legacy collection_id: ${data.config.collection_id}`);
-        const collectionProducts = await fetchCollectionProducts(data.config.collection_id);
+        console.log(
+          `[Templates API] 📦 Fetching products for legacy collection_id: ${data.config.collection_id}`
+        );
+        const collectionProducts = await fetchCollectionProducts(
+          data.config.collection_id
+        );
         if (collectionProducts.length > 0) productList = collectionProducts;
       }
 
@@ -431,11 +482,15 @@ export const action = async ({ request }) => {
       }
 
       // 3. Handle Automatic Page Creation/Linking
-      let pageUrl = data.page_url || (publishParams?.handle ? publishParams.handle : null);
+      let pageUrl =
+        data.page_url || (publishParams?.handle ? publishParams.handle : null);
       let pageId = data.page_id || null;
 
       if (publishParams) {
-        console.log('[Templates API] 📄 Handling Shopify Page operation (Create):', publishParams.publishType);
+        console.log(
+          '[Templates API] 📄 Handling Shopify Page operation (Create):',
+          publishParams.publishType
+        );
         if (publishParams.publishType === 'new') {
           let pageData;
           try {
@@ -458,49 +513,81 @@ export const action = async ({ request }) => {
             );
             pageData = await pageResponse.json();
           } catch (err) {
-            console.error('[Templates API] ❌ pageCreate threw (Create):', err.message);
+            console.error(
+              '[Templates API] ❌ pageCreate threw (Create):',
+              err.message
+            );
             return json(
-              { success: false, error: `Page creation request failed: ${err.message}` },
+              {
+                success: false,
+                error: `Page creation request failed: ${err.message}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
 
-          console.log('[Templates API] pageCreate raw response:', JSON.stringify(pageData));
+          console.log(
+            '[Templates API] pageCreate raw response:',
+            JSON.stringify(pageData)
+          );
 
           if (pageData.errors) {
-            const errMsg = pageData.errors.map(e => e.message).join(', ');
+            const errMsg = pageData.errors.map((e) => e.message).join(', ');
             return json(
-              { success: false, error: `Shopify page creation failed: ${errMsg}` },
+              {
+                success: false,
+                error: `Shopify page creation failed: ${errMsg}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
           if (pageData.data?.pageCreate?.page) {
             pageUrl = pageData.data.pageCreate.page.handle;
             pageId = pageData.data.pageCreate.page.id;
-            console.log(`[Templates API] ✅ Page created: ${pageUrl} (${pageId})`);
+            console.log(
+              `[Templates API] ✅ Page created: ${pageUrl} (${pageId})`
+            );
           } else {
             const userErrors = pageData.data?.pageCreate?.userErrors || [];
-            console.warn('[Templates API] ⚠️ pageCreate userErrors:', JSON.stringify(userErrors));
-            const handleTaken = userErrors.some(e => e.field?.includes('handle') || e.message?.toLowerCase().includes('handle'));
+            console.warn(
+              '[Templates API] ⚠️ pageCreate userErrors:',
+              JSON.stringify(userErrors)
+            );
+            const handleTaken = userErrors.some(
+              (e) =>
+                e.field?.includes('handle') ||
+                e.message?.toLowerCase().includes('handle')
+            );
             if (handleTaken) {
               return json(
-                { success: false, error: `The page handle "${publishParams.handle}" is already taken. Switch to "Use Existing Page" and select it from the list.`, pageHandleConflict: true },
+                {
+                  success: false,
+                  error: `The page handle "${publishParams.handle}" is already taken. Switch to "Use Existing Page" and select it from the list.`,
+                  pageHandleConflict: true,
+                },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
               );
             }
             if (userErrors.length > 0) {
-              const errMsg = userErrors.map(e => e.message).join(', ');
+              const errMsg = userErrors.map((e) => e.message).join(', ');
               return json(
                 { success: false, error: `Failed to create page: ${errMsg}` },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
               );
             }
             return json(
-              { success: false, error: 'Shopify returned no page and no errors. Check API scopes (write_content required).' },
+              {
+                success: false,
+                error:
+                  'Shopify returned no page and no errors. Check API scopes (write_content required).',
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
-        } else if (publishParams.publishType === 'existing' && publishParams.selectedPageId) {
+        } else if (
+          publishParams.publishType === 'existing' &&
+          publishParams.selectedPageId
+        ) {
           let pageData;
           try {
             const pageResponse = await admin.graphql(
@@ -520,18 +607,30 @@ export const action = async ({ request }) => {
             );
             pageData = await pageResponse.json();
           } catch (err) {
-            console.error('[Templates API] ❌ pageUpdate threw (Create flow):', err.message);
+            console.error(
+              '[Templates API] ❌ pageUpdate threw (Create flow):',
+              err.message
+            );
             return json(
-              { success: false, error: `Page link request failed: ${err.message}` },
+              {
+                success: false,
+                error: `Page link request failed: ${err.message}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
 
-          console.log('[Templates API] pageUpdate raw response:', JSON.stringify(pageData));
+          console.log(
+            '[Templates API] pageUpdate raw response:',
+            JSON.stringify(pageData)
+          );
 
           if (pageData.errors) {
             return json(
-              { success: false, error: `Shopify page link failed: ${pageData.errors.map(e => e.message).join(', ')}` },
+              {
+                success: false,
+                error: `Shopify page link failed: ${pageData.errors.map((e) => e.message).join(', ')}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           } else if (pageData.data?.pageUpdate?.page) {
@@ -542,7 +641,10 @@ export const action = async ({ request }) => {
             const userErrors = pageData.data?.pageUpdate?.userErrors || [];
             if (userErrors.length > 0) {
               return json(
-                { success: false, error: `Failed to link page: ${userErrors.map(e => e.message).join(', ')}` },
+                {
+                  success: false,
+                  error: `Failed to link page: ${userErrors.map((e) => e.message).join(', ')}`,
+                },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
               );
             }
@@ -688,15 +790,28 @@ export const action = async ({ request }) => {
       for (let i = 1; i <= 10; i++) {
         const stepHandle = data.config?.[`step_${i}_collection`];
         if (stepHandle) {
-          configSlotsUpd.push({ type: 'step', index: i, handle: stepHandle, limit: parseInt(data.config?.[`step_${i}_limit`]) || null });
+          configSlotsUpd.push({
+            type: 'step',
+            index: i,
+            handle: stepHandle,
+            limit: parseInt(data.config?.[`step_${i}_limit`]) || null,
+          });
         }
         const colHandle = data.config?.[`col_${i}`];
         if (colHandle) {
-          configSlotsUpd.push({ type: 'col', index: i, handle: colHandle, limit: parseInt(data.config?.[`col_${i}_limit`]) || null });
+          configSlotsUpd.push({
+            type: 'col',
+            index: i,
+            handle: colHandle,
+            limit: parseInt(data.config?.[`col_${i}_limit`]) || null,
+          });
         }
       }
       if (data.config?.collection_handle) {
-        configSlotsUpd.push({ type: 'single', handle: data.config.collection_handle });
+        configSlotsUpd.push({
+          type: 'single',
+          handle: data.config.collection_handle,
+        });
       }
 
       if (configSlotsUpd.length > 0) {
@@ -705,7 +820,9 @@ export const action = async ({ request }) => {
 
         for (const slot of configSlotsUpd) {
           if (!handleCache.has(slot.handle)) {
-            console.log(`[Templates API] 📦 Attempting fetch for (Update): ${slot.handle}`);
+            console.log(
+              `[Templates API] 📦 Attempting fetch for (Update): ${slot.handle}`
+            );
             const collectionId = await fetchCollectionIdByHandle(slot.handle);
             if (collectionId) {
               const prods = await fetchCollectionProducts(collectionId);
@@ -716,7 +833,7 @@ export const action = async ({ request }) => {
           }
 
           const products = handleCache.get(slot.handle) || [];
-          products.forEach(p => {
+          products.forEach((p) => {
             const productClone = { ...p, collection_handle: slot.handle };
             if (slot.type === 'step') {
               productClone.step = slot.index;
@@ -727,18 +844,29 @@ export const action = async ({ request }) => {
         }
         if (allProducts.length > 0) productList = allProducts;
       } else if (data.config?.collection_id) {
-        console.log(`[Templates API] 📦 Fetching products for collection (Update): ${data.config.collection_id}`);
-        const collectionProducts = await fetchCollectionProducts(data.config.collection_id);
+        console.log(
+          `[Templates API] 📦 Fetching products for collection (Update): ${data.config.collection_id}`
+        );
+        const collectionProducts = await fetchCollectionProducts(
+          data.config.collection_id
+        );
         if (collectionProducts.length > 0) productList = collectionProducts;
       }
 
       // 3. Handle Automatic Page Creation/Linking (Update)
       // Use publishParams.handle as fallback (same as CREATE path) so page_url is never lost
-      let pageUrl = data.page_url || templates[index].page_url || (publishParams?.handle || null);
+      let pageUrl =
+        data.page_url ||
+        templates[index].page_url ||
+        publishParams?.handle ||
+        null;
       let pageId = data.page_id || templates[index].page_id || null;
 
       if (publishParams) {
-        console.log('[Templates API] 📄 Handling Shopify Page operation (Update):', publishParams.publishType);
+        console.log(
+          '[Templates API] 📄 Handling Shopify Page operation (Update):',
+          publishParams.publishType
+        );
         if (publishParams.publishType === 'new') {
           let pageData;
           try {
@@ -753,7 +881,10 @@ export const action = async ({ request }) => {
               {
                 variables: {
                   page: {
-                    title: publishParams.title || data.title || templates[index].title,
+                    title:
+                      publishParams.title ||
+                      data.title ||
+                      templates[index].title,
                     handle: publishParams.handle,
                   },
                 },
@@ -761,38 +892,63 @@ export const action = async ({ request }) => {
             );
             pageData = await pageResponse.json();
           } catch (err) {
-            console.error('[Templates API] ❌ pageCreate threw (Update):', err.message);
+            console.error(
+              '[Templates API] ❌ pageCreate threw (Update):',
+              err.message
+            );
             return json(
-              { success: false, error: `Page creation request failed: ${err.message}` },
+              {
+                success: false,
+                error: `Page creation request failed: ${err.message}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
 
-          console.log('[Templates API] pageCreate (update flow) raw response:', JSON.stringify(pageData));
+          console.log(
+            '[Templates API] pageCreate (update flow) raw response:',
+            JSON.stringify(pageData)
+          );
 
           if (pageData.errors) {
-            const errMsg = pageData.errors.map(e => e.message).join(', ');
+            const errMsg = pageData.errors.map((e) => e.message).join(', ');
             return json(
-              { success: false, error: `Shopify page creation failed: ${errMsg}` },
+              {
+                success: false,
+                error: `Shopify page creation failed: ${errMsg}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
           if (pageData.data?.pageCreate?.page) {
             pageUrl = pageData.data.pageCreate.page.handle;
             pageId = pageData.data.pageCreate.page.id;
-            console.log(`[Templates API] ✅ Page created (Update flow): ${pageUrl} (${pageId})`);
+            console.log(
+              `[Templates API] ✅ Page created (Update flow): ${pageUrl} (${pageId})`
+            );
           } else {
             const userErrors = pageData.data?.pageCreate?.userErrors || [];
-            console.warn('[Templates API] ⚠️ pageCreate userErrors (update flow):', JSON.stringify(userErrors));
-            const handleTaken = userErrors.some(e => e.field?.includes('handle') || e.message?.toLowerCase().includes('handle'));
+            console.warn(
+              '[Templates API] ⚠️ pageCreate userErrors (update flow):',
+              JSON.stringify(userErrors)
+            );
+            const handleTaken = userErrors.some(
+              (e) =>
+                e.field?.includes('handle') ||
+                e.message?.toLowerCase().includes('handle')
+            );
             if (handleTaken) {
               return json(
-                { success: false, error: `The page handle "${publishParams.handle}" is already taken. Switch to "Use Existing Page" and select it from the list.`, pageHandleConflict: true },
+                {
+                  success: false,
+                  error: `The page handle "${publishParams.handle}" is already taken. Switch to "Use Existing Page" and select it from the list.`,
+                  pageHandleConflict: true,
+                },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
               );
             }
             if (userErrors.length > 0) {
-              const errMsg = userErrors.map(e => e.message).join(', ');
+              const errMsg = userErrors.map((e) => e.message).join(', ');
               return json(
                 { success: false, error: `Failed to create page: ${errMsg}` },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
@@ -800,11 +956,18 @@ export const action = async ({ request }) => {
             }
             // No page and no errors — unexpected, surface it
             return json(
-              { success: false, error: 'Shopify returned no page and no errors. Check API scopes (write_content required).' },
+              {
+                success: false,
+                error:
+                  'Shopify returned no page and no errors. Check API scopes (write_content required).',
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
-        } else if (publishParams.publishType === 'existing' && publishParams.selectedPageId) {
+        } else if (
+          publishParams.publishType === 'existing' &&
+          publishParams.selectedPageId
+        ) {
           let pageData;
           try {
             const pageResponse = await admin.graphql(
@@ -824,29 +987,46 @@ export const action = async ({ request }) => {
             );
             pageData = await pageResponse.json();
           } catch (err) {
-            console.error('[Templates API] ❌ pageUpdate threw (Update):', err.message);
+            console.error(
+              '[Templates API] ❌ pageUpdate threw (Update):',
+              err.message
+            );
             return json(
-              { success: false, error: `Page link request failed: ${err.message}` },
+              {
+                success: false,
+                error: `Page link request failed: ${err.message}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           }
 
-          console.log('[Templates API] pageUpdate (update flow) raw response:', JSON.stringify(pageData));
+          console.log(
+            '[Templates API] pageUpdate (update flow) raw response:',
+            JSON.stringify(pageData)
+          );
 
           if (pageData.errors) {
             return json(
-              { success: false, error: `Shopify page link failed: ${pageData.errors.map(e => e.message).join(', ')}` },
+              {
+                success: false,
+                error: `Shopify page link failed: ${pageData.errors.map((e) => e.message).join(', ')}`,
+              },
               { headers: { 'Access-Control-Allow-Origin': '*' } }
             );
           } else if (pageData.data?.pageUpdate?.page) {
             pageUrl = pageData.data.pageUpdate.page.handle;
             pageId = pageData.data.pageUpdate.page.id;
-            console.log(`[Templates API] ✅ Page linked (Update flow): ${pageUrl}`);
+            console.log(
+              `[Templates API] ✅ Page linked (Update flow): ${pageUrl}`
+            );
           } else {
             const userErrors = pageData.data?.pageUpdate?.userErrors || [];
             if (userErrors.length > 0) {
               return json(
-                { success: false, error: `Failed to link page: ${userErrors.map(e => e.message).join(', ')}` },
+                {
+                  success: false,
+                  error: `Failed to link page: ${userErrors.map((e) => e.message).join(', ')}`,
+                },
                 { headers: { 'Access-Control-Allow-Origin': '*' } }
               );
             }
