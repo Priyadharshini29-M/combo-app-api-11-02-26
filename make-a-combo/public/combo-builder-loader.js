@@ -291,6 +291,8 @@
         selectedVariantByProduct: {}
     };
 
+    let isCartActionInFlight = false;
+
     function renderError(msg) {
         root.innerHTML = `<div style="padding: 20px; color: red; text-align: center;">${msg}</div>`;
     }
@@ -602,6 +604,15 @@
                         const handles = [];
                         for (let i = 1; i <= (cfg.tab_count || 4); i++) { if (cfg[`col_${i}`]) handles.push(cfg[`col_${i}`]); }
                         handles.forEach(h => { if (state.collectionProducts[h]) productsToRender.push(...state.collectionProducts[h]); });
+                        const uniqueProducts = [];
+                        const seenProductIds = new Set();
+                        productsToRender.forEach((p) => {
+                            const pid = String(p && p.id ? p.id : '').trim();
+                            if (!pid || seenProductIds.has(pid)) return;
+                            seenProductIds.add(pid);
+                            uniqueProducts.push(p);
+                        });
+                        productsToRender = uniqueProducts;
                     } else {
                         productsToRender = state.products;
                     }
@@ -815,6 +826,36 @@
     }
 
     function attachEvents() {
+        const getProductsListForActiveContext = () => {
+            const cfg = state.config || {};
+            if (cfg.layout === 'layout2' && state.activeTab !== 'all') {
+                return state.collectionProducts[state.activeTab] || [];
+            }
+            if (cfg.layout === 'layout2' && state.activeTab === 'all') {
+                const handles = [];
+                for (let i = 1; i <= (cfg.tab_count || 4); i++) {
+                    if (cfg[`col_${i}`]) handles.push(cfg[`col_${i}`]);
+                }
+                const merged = [];
+                handles.forEach((h) => {
+                    if (state.collectionProducts[h]) merged.push(...state.collectionProducts[h]);
+                });
+                return merged;
+            }
+            return state.products && state.products.length > 0 ? state.products : mockProducts;
+        };
+
+        const findProductById = (id) => {
+            const activeProducts = getProductsListForActiveContext();
+            const targetId = String(id || '').trim();
+            let product = activeProducts.find((p) => String(p.id) === targetId);
+            if (!product) {
+                const fallbackProducts = state.products && state.products.length > 0 ? state.products : mockProducts;
+                product = fallbackProducts.find((p) => String(p.id) === targetId);
+            }
+            return product || null;
+        };
+
         const getSelectedVariantPayload = (product) => {
             const variants = Array.isArray(product?.variants) ? product.variants : [];
             if (!variants.length) return null;
@@ -862,8 +903,7 @@
 
                 if (action === 'inc') {
                     if (state.selectedProducts.length < maxSel) {
-                        const productsList = state.products && state.products.length > 0 ? state.products : mockProducts;
-                        const product = productsList.find(p => String(p.id) === String(id));
+                        const product = findProductById(id);
                         if (product) {
                             const selectedVariantPayload = getSelectedVariantPayload(product);
                             if (!selectedVariantPayload) return;
@@ -879,7 +919,14 @@
                         showToast(`Limit reached! Max ${maxSel} items.`);
                     }
                 } else if (action === 'dec') {
-                    const idx = state.selectedProducts.findIndex(p => String(p.id) === String(id));
+                    let idx = -1;
+                    const selectedVariantId = String(state.selectedVariantByProduct[String(id)] || '').trim();
+                    if (selectedVariantId) {
+                        idx = state.selectedProducts.findIndex(p => String(p.variantId) === selectedVariantId);
+                    }
+                    if (idx === -1) {
+                        idx = state.selectedProducts.findIndex(p => String(p.id) === String(id));
+                    }
                     if (idx > -1) {
                         state.selectedProducts.splice(idx, 1);
                     }
@@ -897,8 +944,7 @@
                 const maxSel = Number(state.config.max_selections) || 3;
 
                 if (state.selectedProducts.length < maxSel) {
-                    const productsList = state.products && state.products.length > 0 ? state.products : mockProducts;
-                    const product = productsList.find(p => String(p.id) === String(id));
+                    const product = findProductById(id);
                     if (product) {
                         const selectedVariantPayload = getSelectedVariantPayload(product);
                         if (!selectedVariantPayload) return;
@@ -932,11 +978,17 @@
         // FIX 3: Removed the stray orphaned dead-code block ("Disabled inline preview bar... return ''; } }")
         // that was injected in the middle of handleCartAction, causing a SyntaxError / broken closure.
         const handleCartAction = async (isBuyNow) => {
+            if (isCartActionInFlight) {
+                return;
+            }
+
             const maxSel = Number(state.config.max_selections) || 3;
             if (state.selectedProducts.length < maxSel) {
                 showToast(`Please select at least ${maxSel} products to complete the combo.`, true);
                 return;
             }
+
+            isCartActionInFlight = true;
 
             const btn = isBuyNow ? root.querySelector('#combo-buy-now-btn') : root.querySelector('#combo-add-to-cart-btn');
             if (btn) {
@@ -1011,19 +1063,19 @@
                 window.location.href = checkoutUrl;
             } else {
                 try {
+                    const addResponse = await fetch('/cart/add.js', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: itemsArray })
+                    });
+
+                    if (!addResponse.ok) {
+                        throw new Error(`Cart add failed with status ${addResponse.status}`);
+                    }
+
                     if (discountCode) {
-                        await fetch('/cart/add.js', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ items: itemsArray })
-                        });
                         window.location.href = `/discount/${discountCode}?redirect=/cart`;
                     } else {
-                        await fetch('/cart/add.js', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ items: itemsArray })
-                        });
                         window.location.href = '/cart';
                     }
                 } catch (e) {
@@ -1034,6 +1086,7 @@
                         btn.style.pointerEvents = 'auto';
                         btn.innerText = isBuyNow ? (state.config.buy_btn_text || 'Buy Now') : (state.config.add_to_cart_btn_text || 'Add to Cart');
                     }
+                    isCartActionInFlight = false;
                 }
             }
         };

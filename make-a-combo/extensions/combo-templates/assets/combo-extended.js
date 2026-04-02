@@ -1,4 +1,4 @@
-﻿/* ===================== UTILITIES ===================== */
+/* ===================== UTILITIES ===================== */
 function formatMoney(cents) {
   const num = parseFloat(cents);
   let currency = '\u20B9';
@@ -1766,10 +1766,7 @@ function bindLayout1Logic(cfg, products) {
             return;
           }
         }
-        const hasSelection =
-          selected[id] || Object.values(selected).some((i) => i.cardId === id);
-        if (hasSelection) onDec();
-        else onInc();
+        onInc();
       });
 
     // Swatch events

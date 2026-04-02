@@ -7690,6 +7690,8 @@ function ComboPreview({
   // Interactive Preview State
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [cardQtys, setCardQtys] = useState({}); // {productId: qty}
+  const getSelectionScopeKey = (productId, source = 'all') =>
+    `${String(productId)}::${String(source || 'all')}`;
 
   // --- Banner Slider Logic ---
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -7868,7 +7870,8 @@ function ComboPreview({
         );
       }
 
-      setCardQtys((prev) => ({ ...prev, [pid]: finalAllowed }));
+      const scopeKey = getSelectionScopeKey(pid, source);
+      setCardQtys((prev) => ({ ...prev, [scopeKey]: finalAllowed }));
       return selected.map((p) =>
         String(p.id) === String(pid) && p.source === source
           ? { ...p, quantity: finalAllowed }
@@ -7926,7 +7929,15 @@ function ComboPreview({
       }
       handleAddProduct(product, 1, variant, source);
     } else {
-      handleQtyChange(pid, (cardQtys[pid] || 0) + 1, source);
+      const scopeKey = getSelectionScopeKey(pid, source);
+      const sourceItem = selectedProducts.find(
+        (p) => String(p.id) === String(pid) && p.source === source
+      );
+      const currentQty =
+        cardQtys[scopeKey] !== undefined
+          ? cardQtys[scopeKey]
+          : Number(sourceItem?.quantity || 0);
+      handleQtyChange(pid, currentQty + 1, source);
 
       // Motivation/Unlocked Toast Notification
       const nextTotal = currentTotalQty + 1;
@@ -7953,8 +7964,9 @@ function ComboPreview({
     const item = selectedProducts.find(
       (p) => String(p.id) === String(pid) && p.source === source
     );
+    const scopeKey = getSelectionScopeKey(pid, source);
     const currentQty =
-      cardQtys[pid] !== undefined ? cardQtys[pid] : item?.quantity;
+      cardQtys[scopeKey] !== undefined ? cardQtys[scopeKey] : item?.quantity;
     handleQtyChange(pid, currentQty - 1, source);
   };
 
@@ -7964,11 +7976,14 @@ function ComboPreview({
     variant = null,
     source = 'all'
   ) => {
-    const qty = initialQty || cardQtys[product.id] || 1;
+    const scopeKey = getSelectionScopeKey(product.id, source);
+    const qty = initialQty || cardQtys[scopeKey] || 1;
     const selectedVariant =
       variant ||
       (product.variants || []).find(
-        (v) => String(v.id) === String(selectedVariants[product.id])
+        (v) =>
+          String(v.id) ===
+          String(selectedVariants[scopeKey] || selectedVariants[product.id])
       ) ||
       (product.variants && product.variants[0]);
     if (!selectedVariant) return;
@@ -8027,8 +8042,8 @@ function ComboPreview({
       source: source,
     };
 
-    setSelectedProducts([...selectedProducts, newItem]);
-    setCardQtys((prev) => ({ ...prev, [product.id]: Number(qty) }));
+    setSelectedProducts((prev) => [...prev, newItem]);
+    setCardQtys((prev) => ({ ...prev, [scopeKey]: Number(qty) }));
 
     // Motivation/Unlocked Toast Notification (only for initial adds, handleInc handles others)
     const nextTotal = currentTotalQty + Number(qty);
@@ -8052,7 +8067,8 @@ function ComboPreview({
         (p) => !(String(p.id) === String(productId) && p.source === source)
       )
     );
-    setCardQtys((prev) => ({ ...prev, [productId]: 0 }));
+    const scopeKey = getSelectionScopeKey(productId, source);
+    setCardQtys((prev) => ({ ...prev, [scopeKey]: 0 }));
   };
 
   const totalPrice = selectedProducts.reduce(
@@ -8307,11 +8323,19 @@ function ComboPreview({
     />
   );
 
-  const handleVariantChange = (productId, variantId) => {
-    setSelectedVariants((prev) => ({ ...prev, [productId]: variantId }));
+  const handleVariantChange = (productId, variantId, source = 'all') => {
+    const scopeKey = getSelectionScopeKey(productId, source);
+    setSelectedVariants((prev) => ({
+      ...prev,
+      [scopeKey]: variantId,
+      [productId]: variantId,
+    }));
     setSelectedProducts((prev) =>
       prev.map((item) => {
-        if (String(item.id) === String(productId)) {
+        if (
+          String(item.id) === String(productId) &&
+          String(item.source || 'all') === String(source || 'all')
+        ) {
           const prod = products.find((p) => String(p.id) === String(productId));
           const variant = prod?.variants?.find(
             (v) => String(v.id) === String(variantId)
@@ -8335,8 +8359,10 @@ function ComboPreview({
     const [showPopup, setShowPopup] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+    const scopedSelectionKey = getSelectionScopeKey(product.id, source);
     const hasVariants = product.variants && product.variants.length > 1;
     const selectedVariantId =
+      selectedVariants[scopedSelectionKey] ||
       selectedVariants[product.id] ||
       (product.variants && product.variants[0]?.id);
     const selectedVariant =
@@ -8461,7 +8487,7 @@ function ComboPreview({
                 <div
                   key={v.id}
                   onClick={() => {
-                    handleVariantChange(product.id, v.id);
+                    handleVariantChange(product.id, v.id, source);
                     handleAddProduct(product, 1, v, source);
                     setShowPopup(false);
                   }}
@@ -8652,7 +8678,7 @@ function ComboPreview({
                     key={v.id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleVariantChange(product.id, v.id);
+                      handleVariantChange(product.id, v.id, source);
                     }}
                     style={{
                       fontSize: '10px',
@@ -8774,7 +8800,7 @@ function ComboPreview({
                   value: String(v.id),
                 }))}
                 value={selectedVariantId ? String(selectedVariantId) : ''}
-                onChange={(v) => handleVariantChange(product.id, v)}
+                onChange={(v) => handleVariantChange(product.id, v, source)}
               />
             </div>
           )}
@@ -8837,7 +8863,9 @@ function ComboPreview({
                 <input
                   type="number"
                   min="1"
-                  value={cardQtys[product.id] || 0}
+                  value={
+                    cardQtys[getSelectionScopeKey(product.id, source)] || 0
+                  }
                   onChange={(e) =>
                     handleQtyChange(product.id, e.target.value, source)
                   }
@@ -9628,10 +9656,15 @@ function ComboPreview({
             ) : (
               products.slice(0, 6).map((product) => {
                 if (!product) return null;
+                const sourceKey =
+                  activeTab && activeTab !== 'all' ? activeTab : 'all';
                 const isSelected = selectedProducts.some(
-                  (p) => String(p.id) === String(product.id)
+                  (p) =>
+                    String(p.id) === String(product.id) &&
+                    String(p.source || 'all') === String(sourceKey)
                 );
-                const qty = cardQtys[product.id] || 0;
+                const qty =
+                  cardQtys[getSelectionScopeKey(product.id, sourceKey)] || 0;
 
                 // Safe variant access
                 let price = '10.00';
@@ -9737,7 +9770,9 @@ function ComboPreview({
 
                     {!isSelected ? (
                       <button
-                        onClick={() => handleAddProduct(product)}
+                        onClick={() =>
+                          handleAddProduct(product, 1, null, sourceKey)
+                        }
                         style={{
                           width: '100%',
                           background: '#eafff2',
@@ -9762,7 +9797,7 @@ function ComboPreview({
                         }}
                       >
                         <button
-                          onClick={() => handleDec(product.id)}
+                          onClick={() => handleDec(product.id, sourceKey)}
                           style={{
                             flex: 1,
                             background: primaryColor,
@@ -9785,7 +9820,7 @@ function ComboPreview({
                           {qty}
                         </span>
                         <button
-                          onClick={() => handleInc(product.id)}
+                          onClick={() => handleInc(product.id, null, sourceKey)}
                           style={{
                             flex: 1,
                             background: primaryColor,
