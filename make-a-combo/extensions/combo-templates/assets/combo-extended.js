@@ -1092,9 +1092,9 @@ function getPreviewBarHtml(cfg) {
       </div>
       <div style="${rightColStyle}">
         ${motivHtml}
-        <div style="${priceStyle}">
-          <span id="cdo-original-total" style="font-size:${cfg.original_price_size || 13}px;color:${cfg.preview_original_price_color || '#999'};text-decoration:line-through;display:none;"></span>
-          <span id="cdo-discounted-total" style="font-size:${cfg.discounted_price_size || 18}px;font-weight:800;color:${cfg.preview_discount_price_color || '#000'};">Rs.0.00</span>
+        <div style="display:flex;flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap;${isMobile ? 'justify-content:center;' : isTablet ? 'justify-content:flex-start;' : 'justify-content:flex-end;'}">
+          <span id="cdo-original-total" style="font-size:${cfg.original_price_size || 14}px;color:${cfg.preview_original_price_color || '#999'};text-decoration:line-through;display:none;"></span>
+          <span id="cdo-discounted-total" style="font-size:${cfg.discounted_price_size || 18}px;font-weight:800;color:${cfg.preview_discount_price_color || '#000'};"></span>
         </div>
         <div style="${buttonsStyle}">
           ${resetBtnHtml}
@@ -1293,6 +1293,7 @@ function bindLayout1Logic(cfg, products) {
   const selected = {};
   const maxTotal = parseInt(cfg.max_products) || 5;
   const discountPc = parseFloat(cfg.discount_percentage) || 0;
+  let discountApplied = false;
   const limitMsg = (
     cfg.limit_reached_message ||
     'Limit reached! You can only select __LIMIT__ items.'
@@ -1380,6 +1381,13 @@ function bindLayout1Logic(cfg, products) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
+    if (totalQty >= maxTotal && cfg.discount_code && !discountApplied) {
+      discountApplied = true;
+      fetch(rootUrl + 'discount/' + encodeURIComponent(cfg.discount_code)).catch(() => {});
+    } else if (totalQty < maxTotal) {
+      discountApplied = false;
+    }
+
     if (totalQty >= maxTotal && discountPc > 0) {
       disc = total * (1 - discountPc / 100);
       if (origEl) {
@@ -1405,7 +1413,13 @@ function bindLayout1Logic(cfg, products) {
         ).replace(/\{\{remaining\}\}|__REMAINING__/g, rem);
       }
     }
-    if (discEl) discEl.textContent = formatMoney(disc * 100);
+    if (discEl) {
+      if (totalQty > 0) {
+        discEl.textContent = formatMoney(disc * 100);
+      } else {
+        discEl.textContent = '';
+      }
+    }
 
     // Progress bar
     const pct = Math.min(100, Math.round((totalQty / maxTotal) * 100));
@@ -2402,6 +2416,7 @@ function bindStandardLogic({ cfg, products }) {
   const selected = window.__cdoSelected;
   const maxSel = parseInt(cfg.max_products) || 5;
   const discountPc = parseFloat(cfg.discount_percentage) || 0;
+  let discountApplied = false;
   const limitMsg = (cfg.limit_reached_message || 'Limit reached!').replace(
     /\{\{limit\}\}|__LIMIT__/g,
     maxSel
@@ -2517,6 +2532,13 @@ function bindStandardLogic({ cfg, products }) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
+    if (totalQty >= maxSel && cfg.discount_code && !discountApplied) {
+      discountApplied = true;
+      fetch(rootUrl + 'discount/' + encodeURIComponent(cfg.discount_code)).catch(() => {});
+    } else if (totalQty < maxSel) {
+      discountApplied = false;
+    }
+
     if (totalQty >= maxSel && discountPc > 0) {
       disc = total * (1 - discountPc / 100);
       if (origEl) {
@@ -2544,7 +2566,13 @@ function bindStandardLogic({ cfg, products }) {
         motivEl.style.display = 'none';
       }
     }
-    if (discEl) discEl.textContent = formatMoney(Math.round(disc * 100));
+    if (discEl) {
+      if (totalQty > 0) {
+        discEl.textContent = formatMoney(Math.round(disc * 100));
+      } else {
+        discEl.textContent = '';
+      }
+    }
 
     // Progress bar
     const pct = Math.min(100, Math.round((totalQty / maxSel) * 100));
@@ -3088,6 +3116,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
 
       const cfg = template.config || {};
+      cfg.discount_code = cfg.discount_code || template.discount_code || '';
       applySliderConfigCss(cfg);
       const layout = cfg.layout || 'layout1';
       const products = filterProductsByStock(template.product_list || [], cfg);
