@@ -23,6 +23,7 @@ import {
   Popover,
   Icon,
   Text,
+  Tooltip,
 } from '@shopify/polaris';
 import {
   EditIcon,
@@ -31,6 +32,7 @@ import {
   LayoutColumns3Icon,
   PaintBrushFlatIcon,
   SettingsIcon,
+  MagicIcon,
 } from '@shopify/polaris-icons';
 import { useAppBridge } from '@shopify/app-bridge-react';
 import { authenticate } from '../shopify.server';
@@ -580,6 +582,32 @@ export const loader = async ({ request }) => {
     ? shopTemplates.find((t) => String(t.id) === String(templateId)) || null
     : null;
 
+  let initialCollections = [];
+  try {
+    const colRes = await admin.graphql(
+      `#graphql
+      query InitialCollections {
+        collections(first: 250) {
+          nodes {
+            id
+            title
+            handle
+          }
+        }
+      }`
+    );
+
+    const colJson = await colRes.json();
+    initialCollections = (colJson.data?.collections?.nodes || []).map((n) => ({
+      id: n.id,
+      title: n.title,
+      handle: n.handle,
+      productsCount: 0,
+    }));
+  } catch (error) {
+    console.error('[Customize Loader] Initial collection fetch error:', error);
+  }
+
   const blocksDir = path.join(
     process.cwd(),
     'extensions',
@@ -597,6 +625,7 @@ export const loader = async ({ request }) => {
   return json({
     initialTemplate,
     shop,
+    collections: initialCollections,
     existingTemplates: shopTemplates.map((t) => ({ id: t.id, title: t.title })),
     layoutFiles,
     activeDiscounts: (db.discounts || []).map((d) => ({
@@ -1234,19 +1263,22 @@ export default function Customize() {
     initialTemplate = null,
     existingTemplates = [],
     layoutFiles = [],
+    collections: initialCollections = [],
     shop,
   } = useLoaderData();
 
   // Background resource fetching for speed
   const resourceFetcher = useFetcher();
-  const [collections, setCollections] = useState([]);
+  const [collections, setCollections] = useState(initialCollections);
   const [products, setProducts] = useState([]);
   const [shopPages, setShopPages] = useState([]);
-  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [resourcesLoading, setResourcesLoading] = useState(
+    !(initialCollections && initialCollections.length > 0)
+  );
 
   useEffect(() => {
     console.log('[Customize] Triggering resource fetcher...');
-    resourceFetcher.load('/app/customize?mode=resources');
+    resourceFetcher.load('?mode=resources');
   }, []);
 
   useEffect(() => {
@@ -1396,6 +1428,10 @@ export default function Customize() {
   const productFetcher = useFetcher();
   const [productsLoading, setProductsLoading] = useState(false);
   const [stepProductsLoading, setStepProductsLoading] = useState(false);
+  const [generatingTitle, setGeneratingTitle] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [stepFieldAiLoading, setStepFieldAiLoading] = useState({});
+  const [aiSuggestionNonce, setAiSuggestionNonce] = useState(0);
 
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState({
@@ -1760,6 +1796,177 @@ export default function Customize() {
   const updateConfig = useCallback((key, value) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  const generateAiSuggestion = useCallback(
+    async (requestedTarget) => {
+      const currentTitle = String(config.collection_title || '').trim();
+      const currentDescription = String(
+        config.collection_description || ''
+      ).trim();
+      const bothEmpty = !currentTitle && !currentDescription;
+      const effectiveTarget = bothEmpty ? 'both' : requestedTarget;
+      const nonce = `${Date.now()}-${aiSuggestionNonce}`;
+
+      setAiSuggestionNonce((prev) => prev + 1);
+
+      if (effectiveTarget === 'both') {
+        setGeneratingTitle(true);
+        setGeneratingDescription(true);
+      } else if (requestedTarget === 'title') {
+        setGeneratingTitle(true);
+      } else {
+        setGeneratingDescription(true);
+      }
+
+      try {
+        const res = await fetch('/api/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: effectiveTarget,
+            currentTitle,
+            currentDescription,
+            nonce,
+            context: {
+              layout: config.layout,
+              templateTitle: saveTitle,
+              collectionHandle:
+                config.collection_handle || config.step_1_collection,
+              selectedCollections: [
+                config.collection_handle,
+                config.step_1_collection,
+                config.step_2_collection,
+                config.step_3_collection,
+                config.step_4_collection,
+                config.col_1,
+                config.col_2,
+                config.col_3,
+                config.col_4,
+                config.col_5,
+                config.col_6,
+                config.col_7,
+                config.col_8,
+              ].filter(Boolean),
+            },
+          }),
+        });
+
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          throw new Error(
+            payload?.error || 'Unable to generate AI suggestion right now.'
+          );
+        }
+
+        if (payload?.data?.title) {
+          updateConfig('collection_title', payload.data.title);
+        }
+        if (payload?.data?.description) {
+          updateConfig('collection_description', payload.data.description);
+        }
+
+        const message =
+          effectiveTarget === 'both'
+            ? 'AI Sparkle updated title and description.'
+            : requestedTarget === 'title'
+              ? 'AI Sparkle updated collection title.'
+              : 'AI Sparkle updated collection description.';
+        shopify.toast.show(message);
+      } catch (error) {
+        shopify.toast.show(
+          error.message || 'AI suggestion failed. Please try again.',
+          {
+            isError: true,
+          }
+        );
+      } finally {
+        setGeneratingTitle(false);
+        setGeneratingDescription(false);
+      }
+    },
+    [aiSuggestionNonce, config, saveTitle, shopify, updateConfig]
+  );
+
+  const generateStepFieldSuggestion = useCallback(
+    async (step, field) => {
+      const loadingKey = `${step}_${field}`;
+      const collectionHandle = config[`step_${step}_collection`] || '';
+      const collectionTitle =
+        collections.find((col) => col.handle === collectionHandle)?.title || '';
+      const nonce = `${Date.now()}-${aiSuggestionNonce}`;
+
+      setAiSuggestionNonce((prev) => prev + 1);
+      setStepFieldAiLoading((prev) => ({ ...prev, [loadingKey]: true }));
+
+      try {
+        const res = await fetch('/api/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: 'steps',
+            requestedField: field,
+            steps: [
+              {
+                step,
+                collectionHandle,
+                collectionTitle,
+                currentTitle: config[`step_${step}_title`] || '',
+                currentSubtitle: config[`step_${step}_subtitle`] || '',
+              },
+            ],
+            nonce,
+            context: {
+              layout: config.layout,
+              templateTitle: saveTitle,
+              selectedCollections: [collectionHandle].filter(Boolean),
+            },
+          }),
+        });
+
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          throw new Error(
+            payload?.providerMessage ||
+              payload?.error ||
+              'Unable to generate AI suggestion right now.'
+          );
+        }
+
+        const stepData = Array.isArray(payload?.data?.steps)
+          ? payload.data.steps.find((item) => Number(item?.step) === step)
+          : null;
+
+        if (!stepData) {
+          throw new Error('No AI suggestion returned for this step.');
+        }
+
+        if (field === 'title' && stepData.title) {
+          updateConfig(`step_${step}_title`, stepData.title);
+          shopify.toast.show(
+            `AI Sparkle updated title for Collection ${step}.`
+          );
+          return;
+        }
+
+        if (field === 'subtitle' && stepData.subtitle) {
+          updateConfig(`step_${step}_subtitle`, stepData.subtitle);
+          shopify.toast.show(
+            `AI Sparkle updated subtitle for Collection ${step}.`
+          );
+          return;
+        }
+
+        throw new Error('AI response did not include the requested field.');
+      } catch (error) {
+        shopify.toast.show(error.message || 'AI suggestion failed.', {
+          isError: true,
+        });
+      } finally {
+        setStepFieldAiLoading((prev) => ({ ...prev, [loadingKey]: false }));
+      }
+    },
+    [aiSuggestionNonce, collections, config, saveTitle, shopify, updateConfig]
+  );
 
   const getStyleKey = useCallback(
     (baseKey) => {
@@ -2707,6 +2914,7 @@ export default function Customize() {
               const handleClick = () => {
                 if (cat.id === 'layout') {
                   setActiveCategory('layout');
+                  setPreviewDevice('desktop');
                 } else if (cat.id === 'style') {
                   setActiveCategory('style');
                   setStyleDevice('desktop');
@@ -2717,6 +2925,7 @@ export default function Customize() {
                   setPreviewDevice('mobile');
                 } else if (cat.id === 'advanced') {
                   setActiveCategory('advanced');
+                  setPreviewDevice('desktop');
                 }
               };
 
@@ -2891,6 +3100,40 @@ export default function Customize() {
                                   }
                                   autoComplete="off"
                                   placeholder={`e.g. ${step === 1 ? 'Cleanser' : step === 2 ? 'Toner' : 'Product'}`}
+                                  connectedRight={
+                                    <Tooltip content="Generate text">
+                                      <Button
+                                        size="slim"
+                                        variant="secondary"
+                                        icon={MagicIcon}
+                                        accessibilityLabel="Generate title text"
+                                        style={{
+                                          borderColor: '#00c9a7',
+                                          background:
+                                            'linear-gradient(180deg, #ffffff 0%, #ebfff8 100%)',
+                                          boxShadow:
+                                            '0 0 0 1px rgba(0, 201, 167, 0.35), 0 0 10px rgba(0, 201, 167, 0.55), inset 0 0 8px rgba(0, 201, 167, 0.18)',
+                                        }}
+                                        loading={
+                                          !!stepFieldAiLoading[`${step}_title`]
+                                        }
+                                        disabled={
+                                          !!stepFieldAiLoading[
+                                            `${step}_title`
+                                          ] ||
+                                          !!stepFieldAiLoading[
+                                            `${step}_subtitle`
+                                          ]
+                                        }
+                                        onClick={() =>
+                                          generateStepFieldSuggestion(
+                                            step,
+                                            'title'
+                                          )
+                                        }
+                                      />
+                                    </Tooltip>
+                                  }
                                 />
                                 <TextField
                                   label="Subtitle"
@@ -2900,6 +3143,42 @@ export default function Customize() {
                                   }
                                   autoComplete="off"
                                   placeholder="e.g. Select one"
+                                  connectedRight={
+                                    <Tooltip content="Generate text">
+                                      <Button
+                                        size="slim"
+                                        variant="secondary"
+                                        icon={MagicIcon}
+                                        accessibilityLabel="Generate subtitle text"
+                                        style={{
+                                          borderColor: '#00c9a7',
+                                          background:
+                                            'linear-gradient(180deg, #ffffff 0%, #ebfff8 100%)',
+                                          boxShadow:
+                                            '0 0 0 1px rgba(0, 201, 167, 0.35), 0 0 10px rgba(0, 201, 167, 0.55), inset 0 0 8px rgba(0, 201, 167, 0.18)',
+                                        }}
+                                        loading={
+                                          !!stepFieldAiLoading[
+                                            `${step}_subtitle`
+                                          ]
+                                        }
+                                        disabled={
+                                          !!stepFieldAiLoading[
+                                            `${step}_title`
+                                          ] ||
+                                          !!stepFieldAiLoading[
+                                            `${step}_subtitle`
+                                          ]
+                                        }
+                                        onClick={() =>
+                                          generateStepFieldSuggestion(
+                                            step,
+                                            'subtitle'
+                                          )
+                                        }
+                                      />
+                                    </Tooltip>
+                                  }
                                 />
                                 <Select
                                   label="Collection"
@@ -4389,11 +4668,50 @@ export default function Customize() {
 
                         {/* Title Text Field */}
                         <div style={{ paddingBottom: '12px' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-start',
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text
+                              variant="bodyMd"
+                              as="span"
+                              fontWeight="medium"
+                            >
+                              Collection Title
+                            </Text>
+                          </div>
                           <TextField
                             label="Collection Title"
+                            labelHidden
                             value={config.collection_title}
                             onChange={(v) =>
                               updateConfig('collection_title', v)
+                            }
+                            connectedRight={
+                              <Tooltip content="Generate text">
+                                <Button
+                                  size="slim"
+                                  variant="secondary"
+                                  icon={MagicIcon}
+                                  accessibilityLabel="Generate collection title text"
+                                  style={{
+                                    borderColor: '#00c9a7',
+                                    background:
+                                      'linear-gradient(180deg, #ffffff 0%, #ebfff8 100%)',
+                                    boxShadow:
+                                      '0 0 0 1px rgba(0, 201, 167, 0.35), 0 0 10px rgba(0, 201, 167, 0.55), inset 0 0 8px rgba(0, 201, 167, 0.18)',
+                                  }}
+                                  loading={generatingTitle}
+                                  disabled={
+                                    generatingTitle || generatingDescription
+                                  }
+                                  onClick={() => generateAiSuggestion('title')}
+                                />
+                              </Tooltip>
                             }
                           />
                         </div>
@@ -4668,13 +4986,54 @@ export default function Customize() {
 
                         {/* Description Text Field */}
                         <div style={{ paddingBottom: '12px' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-start',
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text
+                              variant="bodyMd"
+                              as="span"
+                              fontWeight="medium"
+                            >
+                              Collection Description
+                            </Text>
+                          </div>
                           <TextField
                             label="Collection Description"
+                            labelHidden
                             value={config.collection_description}
                             onChange={(v) =>
                               updateConfig('collection_description', v)
                             }
                             multiline={3}
+                            connectedRight={
+                              <Tooltip content="Generate text">
+                                <Button
+                                  size="slim"
+                                  variant="secondary"
+                                  icon={MagicIcon}
+                                  accessibilityLabel="Generate collection description text"
+                                  style={{
+                                    borderColor: '#00c9a7',
+                                    background:
+                                      'linear-gradient(180deg, #ffffff 0%, #ebfff8 100%)',
+                                    boxShadow:
+                                      '0 0 0 1px rgba(0, 201, 167, 0.35), 0 0 10px rgba(0, 201, 167, 0.55), inset 0 0 8px rgba(0, 201, 167, 0.18)',
+                                  }}
+                                  loading={generatingDescription}
+                                  disabled={
+                                    generatingTitle || generatingDescription
+                                  }
+                                  onClick={() =>
+                                    generateAiSuggestion('description')
+                                  }
+                                />
+                              </Tooltip>
+                            }
                           />
                         </div>
 

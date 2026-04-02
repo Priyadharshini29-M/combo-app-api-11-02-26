@@ -39,12 +39,9 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [
-      host,
-      "409d-103-130-91-50.ngrok-free.app",
-      // Whitelist current Shopify CLI ngrok hostname so Vite doesn't block it.
-      "829c-103-130-91-53.ngrok-free.app",
-    ],
+    // Tunnel hostnames rotate frequently during local Shopify app development.
+    // Allow all hosts to avoid intermittent fetch failures in embedded Admin.
+    allowedHosts: true,
     cors: {
       preflightContinue: true,
     },

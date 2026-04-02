@@ -709,7 +709,10 @@ export const action = async ({ request }) => {
       console.log('[Templates API] 📤 Synchronizing data to PHP...');
 
       try {
-        const dbResult = await sendToPhp(syncPayload, 'templates.php');
+        const dbResult = await sendToPhp(
+          syncPayload,
+          'make-a-combo/templatesdetails.php'
+        );
         console.log('[Templates API] ✅ MySQL Save Result:', dbResult);
       } catch (dbError) {
         console.error('[Templates API] ❌ MySQL save failed:', dbError.message);
@@ -1075,7 +1078,10 @@ export const action = async ({ request }) => {
       console.log('[Templates API] 📤 Synchronizing update to PHP...');
 
       try {
-        const dbResult = await sendToPhp(syncPayload, 'templates.php');
+        const dbResult = await sendToPhp(
+          syncPayload,
+          'make-a-combo/templatesdetails.php'
+        );
         console.log('[Templates API] ✅ MySQL Update Result:', dbResult);
       } catch (dbError) {
         console.error(
@@ -1100,7 +1106,7 @@ export const action = async ({ request }) => {
             shop: shop, // Use domain
             id,
           },
-          'templates.php'
+          'make-a-combo/templatesdetails.php'
         );
         console.log('[Templates API] ✅ MySQL Delete Result:', dbResult);
       } catch (dbError) {

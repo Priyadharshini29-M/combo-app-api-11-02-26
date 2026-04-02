@@ -66,7 +66,37 @@ export const action = async ({ request }) => {
         }`
       );
       const stData = await stResponse.json();
-      const exists = stData.data?.scriptTags?.nodes?.some(st => st.src === scriptSrc);
+
+      const scriptTags = stData.data?.scriptTags?.nodes || [];
+      const isLegacyComboTag = (src = "") => {
+        const s = String(src || "").toLowerCase();
+        return (
+          s.includes("templatesdetails.php") ||
+          s.includes("/make-a-combo/") ||
+          (s.includes("combo-builder-loader.js") && s !== scriptSrc.toLowerCase())
+        );
+      };
+
+      const staleTags = scriptTags.filter((st) => isLegacyComboTag(st.src));
+      for (const stale of staleTags) {
+        try {
+          await admin.graphql(
+            `#graphql
+            mutation scriptTagDelete($id: ID!) {
+              scriptTagDelete(id: $id) {
+                deletedScriptTagId
+                userErrors { field message }
+              }
+            }`,
+            { variables: { id: stale.id } }
+          );
+          console.log("[Combo App] Deleted stale ScriptTag:", stale.src);
+        } catch (cleanupError) {
+          console.error("[Combo App] Failed deleting stale ScriptTag:", stale.src, cleanupError);
+        }
+      }
+
+      const exists = scriptTags.some(st => st.src === scriptSrc);
 
       if (!exists) {
         await admin.graphql(

@@ -21,13 +21,16 @@ export const formatToIST = (dateString = null) => {
 /* =========================
    PHP BACKEND CONFIG
 ========================= */
-export const BASE_PHP_URL = 'https://darkblue-dotterel-303283.hostingersite.com';
+export const BASE_PHP_URL =
+  'https://darkblue-dotterel-303283.hostingersite.com';
 
 /* =========================
    DATABASE HELPERS (PHP REPLACEMENT)
 ========================= */
 export const getDb = async (shop = null) => {
-  console.log(`[DB] 💿 Fetching data from PHP backend... Shop: ${shop || 'All'}`);
+  console.log(
+    `[DB] 💿 Fetching data from PHP backend... Shop: ${shop || 'All'}`
+  );
   try {
     // We need to fetch both templates and discounts to maintain the structure expected by the app
     const templatesUrl = `${BASE_PHP_URL}/templates.php${shop ? `?shopdomain=${shop}&shop=${shop}` : ''}`;
@@ -37,25 +40,32 @@ export const getDb = async (shop = null) => {
     console.log(`[DB] 🔗 Discounts URL: ${discountsUrl}`);
 
     const [templatesRes, discountsRes] = await Promise.all([
-      fetch(templatesUrl).then(res => res.json()).catch(err => ({ data: [] })),
-      fetch(discountsUrl).then(async res => {
-        const text = await res.text();
-        console.log(`[DB] 📥 Raw Discounts Response from PHP:`, text.substring(0, 500) + (text.length > 500 ? '...' : ''));
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          console.error(`[DB] ❌ Failed to parse JSON:`, e.message);
+      fetch(templatesUrl)
+        .then((res) => res.json())
+        .catch((err) => ({ data: [] })),
+      fetch(discountsUrl)
+        .then(async (res) => {
+          const text = await res.text();
+          console.log(
+            `[DB] 📥 Raw Discounts Response from PHP:`,
+            text.substring(0, 500) + (text.length > 500 ? '...' : '')
+          );
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error(`[DB] ❌ Failed to parse JSON:`, e.message);
+            return { data: [] };
+          }
+        })
+        .catch((err) => {
+          console.error(`[DB] ❌ Fetch error:`, err.message);
           return { data: [] };
-        }
-      }).catch(err => {
-        console.error(`[DB] ❌ Fetch error:`, err.message);
-        return { data: [] };
-      })
+        }),
     ]);
 
     return {
       templates: templatesRes.templates || templatesRes.data || [],
-      discounts: discountsRes.data || []
+      discounts: discountsRes.data || [],
     };
   } catch (error) {
     console.error('[DB] ❌ Error fetching from PHP backend:', error);
@@ -64,11 +74,13 @@ export const getDb = async (shop = null) => {
 };
 
 export const saveDb = (data) => {
-  // saveDb was used for fake_db.json. 
+  // saveDb was used for fake_db.json.
   // With PHP, updates happen individually via sendToPhp.
-  // We'll keep this as a no-op or log it to prevent crashes, 
+  // We'll keep this as a no-op or log it to prevent crashes,
   // but the app should rely on action functions calling sendToPhp.
-  console.log('[DB] ℹ️ saveDb called. Local JSON sync is disabled as we are now using PHP/MySQL.');
+  console.log(
+    '[DB] ℹ️ saveDb called. Local JSON sync is disabled as we are now using PHP/MySQL.'
+  );
 };
 
 /* =========================
@@ -82,7 +94,7 @@ export async function sendToPhp(payload, endpoint) {
   const phpUrl = `${BASE_PHP_URL}/${endpoint}`;
 
   console.log(`[PHP API] 📡 Initiating request to: ${phpUrl}`);
-  
+
   try {
     const fetchOptions = {
       method: 'POST',
@@ -161,7 +173,7 @@ export async function sendTemplateData(templateData, action = 'create') {
     data: templateData,
   };
 
-  return await sendToPhp(payload, 'templates.php');
+  return await sendToPhp(payload, 'make-a-combo/templatesdetails.php');
 }
 
 /* =========================
@@ -177,7 +189,8 @@ export async function getVisitors(shop, start, end) {
     const text = await res.text();
     console.log(`[API] 📥 Raw Visitors Result: ${text.substring(0, 100)}`);
     const result = JSON.parse(text);
-    const data = result.data || result.visitors || (Array.isArray(result) ? result : []);
+    const data =
+      result.data || result.visitors || (Array.isArray(result) ? result : []);
     return data;
   } catch (e) {
     console.error('[API] ❌ Visitors Fetch Failed:', e.message);
@@ -194,7 +207,8 @@ export async function getClicks(shop, start, end) {
     const text = await res.text();
     console.log(`[API] 📥 Raw Clicks Result: ${text.substring(0, 100)}`);
     const result = JSON.parse(text);
-    const data = result.data || result.clicks || (Array.isArray(result) ? result : []);
+    const data =
+      result.data || result.clicks || (Array.isArray(result) ? result : []);
     return data;
   } catch (e) {
     console.error('[API] ❌ Clicks Fetch Failed:', e.message);
@@ -216,21 +230,26 @@ export function transformAnalytics(visitors = [], clicks = []) {
   const templateStats = {};
 
   // Process Visitors
-  visitors.forEach(v => {
+  visitors.forEach((v) => {
     // Check various common field names for template
     const t = v.template_name || v.template || v.layout || 'Unknown';
-    if (!templateStats[t]) templateStats[t] = { name: t, visitors: 0, clicks: 0, checkouts: 0 };
+    if (!templateStats[t])
+      templateStats[t] = { name: t, visitors: 0, clicks: 0, checkouts: 0 };
     templateStats[t].visitors++;
   });
 
   // Process Clicks
-  clicks.forEach(c => {
+  clicks.forEach((c) => {
     const t = c.template_name || c.template || c.layout || 'Unknown';
-    if (!templateStats[t]) templateStats[t] = { name: t, visitors: 0, clicks: 0, checkouts: 0 };
+    if (!templateStats[t])
+      templateStats[t] = { name: t, visitors: 0, clicks: 0, checkouts: 0 };
     templateStats[t].clicks++;
-    
+
     // Check for checkout markers
-    const isCheckout = c.action === 'checkout' || c.type === 'checkout' || c.target?.includes('checkout');
+    const isCheckout =
+      c.action === 'checkout' ||
+      c.type === 'checkout' ||
+      c.target?.includes('checkout');
     if (isCheckout) {
       templateStats[t].checkouts++;
       summary.checkoutClicks++;
@@ -239,8 +258,9 @@ export function transformAnalytics(visitors = [], clicks = []) {
 
   // Convert map to grouped array + find Top Template
   let topClicks = -1;
-  const tableData = Object.values(templateStats).map(s => {
-    const rate = s.visitors > 0 ? ((s.clicks / s.visitors) * 100).toFixed(1) : '0.0';
+  const tableData = Object.values(templateStats).map((s) => {
+    const rate =
+      s.visitors > 0 ? ((s.clicks / s.visitors) * 100).toFixed(1) : '0.0';
     if (s.clicks > topClicks && s.name !== 'Unknown') {
       topClicks = s.clicks;
       summary.topTemplate = s.name;
@@ -250,17 +270,19 @@ export function transformAnalytics(visitors = [], clicks = []) {
 
   // Daily Chart Data
   const dateMap = {};
-  clicks.forEach(c => {
+  clicks.forEach((c) => {
     const d = c.created_at?.split(' ')[0] || c.date || 'Unknown';
     if (d !== 'Unknown') dateMap[d] = (dateMap[d] || 0) + 1;
   });
 
-  summary.chartData = Object.keys(dateMap).sort().map(date => ({
-    date: date.substring(5), // Shorten MM-DD
-    clicks: dateMap[date],
-  }));
+  summary.chartData = Object.keys(dateMap)
+    .sort()
+    .map((date) => ({
+      date: date.substring(5), // Shorten MM-DD
+      clicks: dateMap[date],
+    }));
 
-  summary.byTemplate = tableData.sort((a,b) => b.clicks - a.clicks);
+  summary.byTemplate = tableData.sort((a, b) => b.clicks - a.clicks);
   return summary;
 }
 
@@ -327,14 +349,19 @@ export async function getShopifyDiscounts(admin) {
 export async function getShopifyOrders(admin, start, end) {
   try {
     // Shopify orders query with created_at filter.
-    const startTime = start ? new Date(start.replace(' ', 'T') + 'Z').toISOString() : null;
-    const endTime = end ? new Date(end.replace(' ', 'T') + 'Z').toISOString() : new Date().toISOString();
-    
+    const startTime = start
+      ? new Date(start.replace(' ', 'T') + 'Z').toISOString()
+      : null;
+    const endTime = end
+      ? new Date(end.replace(' ', 'T') + 'Z').toISOString()
+      : new Date().toISOString();
+
     let query = `financial_status:paid`;
     if (startTime) query += ` AND created_at:>=${startTime}`;
     if (endTime) query += ` AND created_at:<=${endTime}`;
 
-    const res = await admin.graphql(`
+    const res = await admin.graphql(
+      `
       #graphql
       query getOrders($query: String!) {
         shop {
@@ -353,16 +380,21 @@ export async function getShopifyOrders(admin, start, end) {
           }
         }
       }
-    `, {
-      variables: { query }
-    });
+    `,
+      {
+        variables: { query },
+      }
+    );
 
     const json = await res.json();
     const currencyCode = json.data?.shop?.currencyCode || 'USD';
     const edges = json.data?.orders?.edges || [];
-    
+
     const ordersCount = edges.length;
-    const totalRevenue = edges.reduce((acc, { node }) => acc + parseFloat(node.totalPriceSet.shopMoney.amount), 0);
+    const totalRevenue = edges.reduce(
+      (acc, { node }) => acc + parseFloat(node.totalPriceSet.shopMoney.amount),
+      0
+    );
 
     return { ordersCount, totalRevenue, currencyCode };
   } catch (e) {
@@ -398,10 +430,10 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
     const queries = [
       fetch(url.toString()),
       fetch(`${BASE_PHP_URL}/discount.php?shopdomain=${shop}&shop=${shop}`)
-        .then(r => r.json())
+        .then((r) => r.json())
         .catch(() => ({ data: [] })),
     ];
-    
+
     // Add Shopify orders fetch if admin is provided
     if (admin) {
       queries.push(getShopifyOrders(admin, start, end));
@@ -413,8 +445,8 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
 
     const rawResponse = await response.json();
     if (!rawResponse.success || !rawResponse.data) {
-       console.error(`[API] ❌ Invalid data format:`, rawResponse);
-       return null;
+      console.error(`[API] ❌ Invalid data format:`, rawResponse);
+      return null;
     }
 
     const phpData = rawResponse.data;
@@ -423,7 +455,8 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
     const rawDiscounts = discountRes.data || [];
     const normalizedDiscounts = rawDiscounts.map((d) => {
       const s1 = d.settings && typeof d.settings === 'object' ? d.settings : {};
-      const s2 = s1.settings && typeof s1.settings === 'object' ? s1.settings : {};
+      const s2 =
+        s1.settings && typeof s1.settings === 'object' ? s1.settings : {};
       const flat = { ...d, ...s1, ...s2 };
       return {
         title: flat.title || flat.discount_title || 'Untitled',
@@ -434,9 +467,12 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
         valueType: flat.valueType || 'percentage',
       };
     });
-    const activeDiscountCount =
-      normalizedDiscounts.filter((d) => d.status === 'active').length;
-    console.log(`[API] 🏷️ Active discounts for ${shop}: ${activeDiscountCount}`);
+    const activeDiscountCount = normalizedDiscounts.filter(
+      (d) => d.status === 'active'
+    ).length;
+    console.log(
+      `[API] 🏷️ Active discounts for ${shop}: ${activeDiscountCount}`
+    );
 
     // Normalize template names
     const normalize = (name) =>
@@ -521,6 +557,3 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
     return null;
   }
 }
-
-
-

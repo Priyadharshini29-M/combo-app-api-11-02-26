@@ -2,174 +2,479 @@
 function bindStandardLogic({ cfg, products }) {
   // Use persistent state to ensure selections survive collection switches (e.g. tabs)
   if (!window.comboSelected) window.comboSelected = {};
-  const selected     = window.comboSelected;
-  const maxSel       = parseInt(cfg.max_products) || 5;
-  const discountPc   = parseFloat(cfg.discount_percentage) || 0;
-  const limitMsg     = (cfg.limit_reached_message || 'Limit reached!').replace(/\{\{limit\}\}|__LIMIT__/g, maxSel);
-  const hl           = cfg.selection_highlight_color || cfg.primary_color || '#000';
-  const rootUrl      = (window.Shopify?.routes?.root) || '/';
+  const selected = window.comboSelected;
+  const maxSel = parseInt(cfg.max_products) || 5;
+  const discountPc = parseFloat(cfg.discount_percentage) || 0;
+  const limitMsg = (cfg.limit_reached_message || 'Limit reached!').replace(
+    /\{\{limit\}\}|__LIMIT__/g,
+    maxSel
+  );
+  const hl = cfg.selection_highlight_color || cfg.primary_color || '#000';
+  const rootUrl = window.Shopify?.routes?.root || '/';
 
-  function toSafeNumber(val, fallback = 0) { const n = parseFloat(val); return Number.isFinite(n) ? n : fallback; }
-  function toSafeImage(val) { if (typeof val !== 'string') return ''; const s = val.trim(); if (!s || s === 'undefined' || s === 'null') return ''; return s; }
-  function getCardSelectionQty(cardId) { return Object.values(selected).filter(i => i.cardId === cardId || i.id === cardId).reduce((s, i) => s + (parseInt(i.qty, 10) || 0), 0); }
-  function normalizeVariantId(gidOrId) { return String(gidOrId || '').replace('gid://shopify/ProductVariant/', '').trim(); }
-  function normalizeProductId(gidOrId) { return String(gidOrId || '').replace('gid://shopify/Product/', '').trim(); }
-  function getProductByCardId(cardId) { return products.find(p => { const pId = normalizeProductId(p.id); if (pId === cardId) return true; return (p.variants || []).some(v => normalizeVariantId(v.id) === cardId); }) || null; }
+  function toSafeNumber(val, fallback = 0) {
+    const n = parseFloat(val);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function toSafeImage(val) {
+    if (typeof val !== 'string') return '';
+    const s = val.trim();
+    if (!s || s === 'undefined' || s === 'null') return '';
+    return s;
+  }
+  function getCardSelectionQty(cardId) {
+    return Object.values(selected)
+      .filter((i) => i.cardId === cardId || i.id === cardId)
+      .reduce((s, i) => s + (parseInt(i.qty, 10) || 0), 0);
+  }
+  function normalizeVariantId(gidOrId) {
+    return String(gidOrId || '')
+      .replace('gid://shopify/ProductVariant/', '')
+      .trim();
+  }
+  function normalizeProductId(gidOrId) {
+    return String(gidOrId || '')
+      .replace('gid://shopify/Product/', '')
+      .trim();
+  }
+  function getProductByCardId(cardId) {
+    return (
+      products.find((p) => {
+        const pId = normalizeProductId(p.id);
+        if (pId === cardId) return true;
+        return (p.variants || []).some(
+          (v) => normalizeVariantId(v.id) === cardId
+        );
+      }) || null
+    );
+  }
 
   function buildValidLineItems() {
     const grouped = {};
-    Object.values(selected).forEach(i => {
+    Object.values(selected).forEach((i) => {
       let variantId = String(i.id || '').trim();
       const cardId = String(i.cardId || '').trim();
       const qty = parseInt(i.qty, 10) || 0;
-      if (!/^[0-9]+$/.test(variantId)) {
-        variantId = normalizeVariantId(variantId);
-      }
-      if (!/^[0-9]+$/.test(variantId)) {
-        const product = getProductByCardId(cardId);
-        if (product && Array.isArray(product.variants) && product.variants.length > 0) { variantId = normalizeVariantId(product.variants[0].id); }
-        else { return; }
+      const product = getProductByCardId(cardId);
+      if (
+        product &&
+        Array.isArray(product.variants) &&
+        product.variants.length
+      ) {
+        const productVariantIds = product.variants
+          .map((v) => normalizeVariantId(v.id))
+          .filter((id) => /^\d+$/.test(id));
+        if (!productVariantIds.includes(variantId)) {
+          if (productVariantIds.length === 1) variantId = productVariantIds[0];
+          else return;
+        }
+      } else if (!/^\d+$/.test(variantId)) {
+        return;
       }
       if (!/^[0-9]+$/.test(variantId) || qty <= 0) return;
       grouped[variantId] = (grouped[variantId] || 0) + qty;
     });
-    return Object.keys(grouped).map(variantId => ({ id: variantId, quantity: grouped[variantId] }));
+    return Object.keys(grouped).map((variantId) => ({
+      id: variantId,
+      quantity: grouped[variantId],
+    }));
   }
 
   function updateAll() {
-    const items = Object.values(selected); const totalQty = items.reduce((s, i) => s + i.qty, 0); const total = items.reduce((s, i) => s + (toSafeNumber(i.price) * (parseInt(i.qty, 10) || 0)), 0);
-    let disc = total; const origEl = document.getElementById('cdo-original-total'); const discEl = document.getElementById('cdo-discounted-total'); const motivEl = document.getElementById('cdo-motiv');
+    const items = Object.values(selected);
+    const totalQty = items.reduce((s, i) => s + i.qty, 0);
+    const total = items.reduce(
+      (s, i) => s + toSafeNumber(i.price) * (parseInt(i.qty, 10) || 0),
+      0
+    );
+    let disc = total;
+    const origEl = document.getElementById('cdo-original-total');
+    const discEl = document.getElementById('cdo-discounted-total');
+    const motivEl = document.getElementById('cdo-motiv');
     if (totalQty >= maxSel && discountPc > 0) {
-      disc = total * (1 - discountPc / 100); if (origEl) { origEl.style.display = 'inline'; origEl.textContent = formatMoney(total * 100); }
-      if (motivEl) { motivEl.style.display = 'block'; motivEl.textContent = cfg.preview_motivation_unlocked_text || cfg.discount_unlocked_text || '🎉 Discount Unlocked!'; }
+      disc = total * (1 - discountPc / 100);
+      if (origEl) {
+        origEl.style.display = 'inline';
+        origEl.textContent = formatMoney(total * 100);
+      }
+      if (motivEl) {
+        motivEl.style.display = 'block';
+        motivEl.textContent =
+          cfg.preview_motivation_unlocked_text ||
+          cfg.discount_unlocked_text ||
+          '🎉 Discount Unlocked!';
+      }
     } else {
       if (origEl) origEl.style.display = 'none';
-      if (motivEl && totalQty > 0 && totalQty < maxSel) { const rem = maxSel - totalQty; motivEl.style.display = 'block'; motivEl.textContent = (cfg.preview_motivation_text || cfg.discount_motivation_text || 'Add __REMAINING__ more!').replace(/\{\{remaining\}\}|__REMAINING__/g, rem); }
-      else if (motivEl && totalQty === 0) { motivEl.style.display = 'none'; }
+      if (motivEl && totalQty > 0 && totalQty < maxSel) {
+        const rem = maxSel - totalQty;
+        motivEl.style.display = 'block';
+        motivEl.textContent = (
+          cfg.preview_motivation_text ||
+          cfg.discount_motivation_text ||
+          'Add __REMAINING__ more!'
+        ).replace(/\{\{remaining\}\}|__REMAINING__/g, rem);
+      } else if (motivEl && totalQty === 0) {
+        motivEl.style.display = 'none';
+      }
     }
     if (discEl) discEl.textContent = formatMoney(Math.round(disc * 100));
     const pct = Math.min(100, Math.round((totalQty / maxSel) * 100));
-    const progressColor = cfg.progress_bar_color || '#1a6644'; const bar = document.getElementById('cdo-progress-bar'); const ptxt = document.getElementById('cdo-progress-text'); const umsg = document.getElementById('cdo-unlock-msg'); const track = document.getElementById('cdo-progress-track');
-    if (bar) { bar.style.transform = 'scaleX(' + (pct / 100) + ')'; bar.style.backgroundColor = progressColor; const fillEl = document.getElementById('cdo-progress-bar-fill'); if (fillEl) fillEl.style.backgroundColor = progressColor; }
-    if (track) { track.style.setProperty('--cdo-progress-color', progressColor); track.style.backgroundColor = '#e0e0e0'; }
+    const progressColor = cfg.progress_bar_color || '#1a6644';
+    const bar = document.getElementById('cdo-progress-bar');
+    const ptxt = document.getElementById('cdo-progress-text');
+    const umsg = document.getElementById('cdo-unlock-msg');
+    const track = document.getElementById('cdo-progress-track');
+    if (bar) {
+      bar.style.transform = 'scaleX(' + pct / 100 + ')';
+      bar.style.backgroundColor = progressColor;
+      const fillEl = document.getElementById('cdo-progress-bar-fill');
+      if (fillEl) fillEl.style.backgroundColor = progressColor;
+    }
+    if (track) {
+      track.style.setProperty('--cdo-progress-color', progressColor);
+      track.style.backgroundColor = '#e0e0e0';
+    }
     if (ptxt) ptxt.textContent = pct + '%';
-    if (umsg) { if (totalQty >= maxSel) { umsg.innerHTML = `<span style="color:${cfg.progress_success_color||'#008060'};font-weight:700;">🎉 ${cfg.discount_unlocked_text||'Discount Unlocked!'}</span>`; } else { const rem = maxSel - totalQty; umsg.textContent = (cfg.discount_motivation_text || 'Add __REMAINING__ more items to unlock the discount!').replace(/\{\{remaining\}\}|__REMAINING__/g, rem); } }
-    const flat = []; items.forEach(i => { for (let q = 0; q < i.qty; q++) flat.push(i); });
-    for (let i = 1; i <= maxSel; i++) { const slot = document.getElementById(`cdo-slot-${i}`); if (!slot) continue; const item = flat[i - 1]; const img = item ? toSafeImage(item.image) : ''; if (item && img) { slot.innerHTML = `<img class="cdo-preview-image preview-image" src="${img}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:inherit;display:block;">`; slot.style.border = `2px solid ${hl}`; } else { slot.innerHTML = '+'; slot.style.border = '2px dashed rgba(0,0,0,0.2)'; } }
+    if (umsg) {
+      if (totalQty >= maxSel) {
+        umsg.innerHTML = `<span style="color:${cfg.progress_success_color || '#008060'};font-weight:700;">🎉 ${cfg.discount_unlocked_text || 'Discount Unlocked!'}</span>`;
+      } else {
+        const rem = maxSel - totalQty;
+        umsg.textContent = (
+          cfg.discount_motivation_text ||
+          'Add __REMAINING__ more items to unlock the discount!'
+        ).replace(/\{\{remaining\}\}|__REMAINING__/g, rem);
+      }
+    }
+    const flat = [];
+    items.forEach((i) => {
+      for (let q = 0; q < i.qty; q++) flat.push(i);
+    });
+    for (let i = 1; i <= maxSel; i++) {
+      const slot = document.getElementById(`cdo-slot-${i}`);
+      if (!slot) continue;
+      const item = flat[i - 1];
+      const img = item ? toSafeImage(item.image) : '';
+      if (item && img) {
+        slot.innerHTML = `<img class="cdo-preview-image preview-image" src="${img}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:inherit;display:block;">`;
+        slot.style.border = `2px solid ${hl}`;
+      } else {
+        slot.innerHTML = '+';
+        slot.style.border = '2px dashed rgba(0,0,0,0.2)';
+      }
+    }
   }
 
-  document.querySelectorAll('.cdo-card').forEach(card => {
-    const id = card.dataset.id; const price = toSafeNumber(card.dataset.price); const image = toSafeImage(card.dataset.image); const product = getProductByCardId(id);
-    function updateCard(skipUpdateAll = false) { 
-      const qty = getCardSelectionQty(id); 
-      const qtyEl = card.querySelector('.cdo-qty-value'); 
-      if (qtyEl) qtyEl.value = qty; 
-      card.style.border = qty > 0 ? `2px solid ${hl}` : `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; 
-      const addBtn = card.querySelector('.cdo-add-btn'); 
-      if (addBtn) addBtn.textContent = qty > 0 ? (cfg.product_add_btn_text||'Added') : (cfg.product_add_btn_text||cfg.add_btn_text||'Add'); 
-      const tick = card.querySelector('.cdo-tick'); 
-      if (tick) tick.classList.toggle('visible', qty > 0); 
-      if (!skipUpdateAll) updateAll(); 
+  document.querySelectorAll('.cdo-card').forEach((card) => {
+    const id = card.dataset.id;
+    const price = toSafeNumber(card.dataset.price);
+    const image = toSafeImage(card.dataset.image);
+    const product = getProductByCardId(id);
+    function updateCard(skipUpdateAll = false) {
+      const qty = getCardSelectionQty(id);
+      const qtyEl = card.querySelector('.cdo-qty-value');
+      if (qtyEl) qtyEl.value = qty;
+      card.style.border =
+        qty > 0
+          ? `2px solid ${hl}`
+          : `2px solid ${cfg.preview_item_border_color || '#f0f0f0'}`;
+      const addBtn = card.querySelector('.cdo-add-btn');
+      if (addBtn)
+        addBtn.textContent =
+          qty > 0
+            ? cfg.product_add_btn_text || 'Added'
+            : cfg.product_add_btn_text || cfg.add_btn_text || 'Add';
+      const tick = card.querySelector('.cdo-tick');
+      if (tick) tick.classList.toggle('visible', qty > 0);
+      if (!skipUpdateAll) updateAll();
     }
     const onInc = (overrideVariant) => {
-      if (card.dataset.soldout === '1') { showToast('This product is sold out.'); return; }
-      const total = Object.values(selected).reduce((s,i) => s+i.qty, 0); if (total >= maxSel) { showToast(limitMsg); return; }
+      if (card.dataset.soldout === '1') {
+        showToast('This product is sold out.');
+        return;
+      }
+      const total = Object.values(selected).reduce((s, i) => s + i.qty, 0);
+      if (total >= maxSel) {
+        showToast(limitMsg);
+        return;
+      }
       const displayMode = cfg.product_card_variants_display || 'static';
-      
+
       // Fix: Check if overrideVariant is a real variant object (has id and is not an Event)
-      const isOverride = overrideVariant && typeof overrideVariant === 'object' && !overrideVariant.preventDefault && overrideVariant.id;
+      const isOverride =
+        overrideVariant &&
+        typeof overrideVariant === 'object' &&
+        !overrideVariant.preventDefault &&
+        overrideVariant.id;
 
       if (isOverride) {
-        let key = String(overrideVariant.id || '').trim(); const vPrice = toSafeNumber(overrideVariant.price, price); const vImage = toSafeImage(overrideVariant.image) || image;
-        if (!/^\d+$/.test(key)) { const fallbackVariant = product && (product.variants || []).length > 0 ? normalizeVariantId(product.variants[0].id) : ''; key = fallbackVariant; }
-        if (!/^\d+$/.test(key)) { showToast('Please select a valid variant.'); return; }
-        if (!selected[key]) selected[key] = { id: key, price: vPrice, image: vImage, qty: 1, cardId: id }; else selected[key].qty++;
-        updateCard(); return;
+        let key = String(overrideVariant.id || '').trim();
+        const vPrice = toSafeNumber(overrideVariant.price, price);
+        const vImage = toSafeImage(overrideVariant.image) || image;
+        if (!/^\d+$/.test(key)) {
+          showToast('Please select a valid variant.');
+          return;
+        }
+        if (!selected[key])
+          selected[key] = {
+            id: key,
+            price: vPrice,
+            image: vImage,
+            qty: 1,
+            cardId: id,
+          };
+        else selected[key].qty++;
+        updateCard();
+        return;
       }
-      if (displayMode === 'popup' && product && (product.variants || []).length > 1) { if (document.getElementById('cdo-variant-overlay')) { openVariantPopup(card, product); return; } }
-      let variantId = id; let variantPrice = price; let variantImage = image; 
+      if (
+        displayMode === 'popup' &&
+        product &&
+        (product.variants || []).length > 1
+      ) {
+        if (document.getElementById('cdo-variant-overlay')) {
+          openVariantPopup(card, product);
+          return;
+        }
+      }
+      let variantId = id;
+      let variantPrice = price;
+      let variantImage = image;
       const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
       const staticSelect = card.querySelector('.cdo-variant-static-select');
       if (staticSelect) {
-        if (!staticSelect.value) { showToast('Please select a valid variant.'); return; }
+        if (!staticSelect.value) {
+          showToast('Please select a valid variant.');
+          return;
+        }
         variantId = staticSelect.value;
         const selOpt = staticSelect.options[staticSelect.selectedIndex];
         variantPrice = toSafeNumber(selOpt.dataset.price, price);
         variantImage = toSafeImage(selOpt.dataset.image) || image;
-      } else if (activeSwatch && activeSwatch.dataset.variantId) { 
-        variantId = String(activeSwatch.dataset.variantId).trim(); variantPrice = toSafeNumber(activeSwatch.dataset.price, price); variantImage = toSafeImage(activeSwatch.dataset.image) || image; 
-      } else if (product && (product.variants || []).length > 0) { 
-        const firstVariant = product.variants.find(v => v.available !== false && (typeof v.inventory_quantity === 'undefined' || parseInt(v.inventory_quantity, 10) > 0)) || product.variants[0]; 
-        variantId = normalizeVariantId(firstVariant.id) || variantId; variantPrice = toSafeNumber(firstVariant.price, price); variantImage = toSafeImage(firstVariant.image) || image; 
+      } else if (activeSwatch && activeSwatch.dataset.variantId) {
+        variantId = String(activeSwatch.dataset.variantId).trim();
+        variantPrice = toSafeNumber(activeSwatch.dataset.price, price);
+        variantImage = toSafeImage(activeSwatch.dataset.image) || image;
+      } else if (product && (product.variants || []).length > 0) {
+        if ((product.variants || []).length === 1) {
+          const firstVariant = product.variants[0];
+          variantId = normalizeVariantId(firstVariant.id) || variantId;
+          variantPrice = toSafeNumber(firstVariant.price, price);
+          variantImage = toSafeImage(firstVariant.image) || image;
+        } else {
+          showToast('Please select a valid variant.');
+          return;
+        }
       }
-      if (!/^\d+$/.test(String(variantId || '').trim())) { showToast('Please select a valid variant.'); return; }
-      if (!selected[variantId]) selected[variantId] = { id: variantId, price: variantPrice, image: variantImage, qty: 1, cardId: id }; else selected[variantId].qty++;
+      if (!/^\d+$/.test(String(variantId || '').trim())) {
+        showToast('Please select a valid variant.');
+        return;
+      }
+      if (!selected[variantId])
+        selected[variantId] = {
+          id: variantId,
+          price: variantPrice,
+          image: variantImage,
+          qty: 1,
+          cardId: id,
+        };
+      else selected[variantId].qty++;
       updateCard();
     };
-    const onDec = () => { let key = null; if (selected[id]) { key = id; } else { const activeSwatch = card.querySelector('.cdo-variant-swatch.active'); const activeVariantId = activeSwatch ? activeSwatch.dataset.variantId : null; if (activeVariantId && selected[activeVariantId]) key = activeVariantId; if (!key) key = Object.keys(selected).find(k => selected[k].cardId === id); } if (key) { selected[key].qty--; if (selected[key].qty <= 0) delete selected[key]; updateCard(); } };
-    const incBtn = card.querySelector('.increment-btn'); const decBtn = card.querySelector('.decrement-btn'); const addBtn = card.querySelector('.cdo-add-btn');
-    if (incBtn) incBtn.addEventListener('click', onInc); if (decBtn) decBtn.addEventListener('click', onDec); if (addBtn) addBtn.addEventListener('click', onInc);
-    card.querySelectorAll('.cdo-variant-swatch').forEach(swatch => {
-      swatch.addEventListener('click', (e) => { 
-        e.stopPropagation(); const vId = swatch.dataset.variantId; const vPrice = toSafeNumber(swatch.dataset.price, price); const vImg = toSafeImage(swatch.dataset.image) || image; 
-        card.querySelectorAll('.cdo-variant-swatch').forEach(s => s.classList.remove('active')); swatch.classList.add('active'); 
-        const mainImg = card.querySelector('img'); if (mainImg) mainImg.src = vImg; 
-        const priceDiv = card.querySelector('.cdo-card-price'); if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100); 
+    const onDec = () => {
+      let key = null;
+      if (selected[id]) {
+        key = id;
+      } else {
+        const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
+        const activeVariantId = activeSwatch
+          ? activeSwatch.dataset.variantId
+          : null;
+        if (activeVariantId && selected[activeVariantId]) key = activeVariantId;
+        if (!key)
+          key = Object.keys(selected).find((k) => selected[k].cardId === id);
+      }
+      if (key) {
+        selected[key].qty--;
+        if (selected[key].qty <= 0) delete selected[key];
+        updateCard();
+      }
+    };
+    const incBtn = card.querySelector('.increment-btn');
+    const decBtn = card.querySelector('.decrement-btn');
+    const addBtn = card.querySelector('.cdo-add-btn');
+    if (incBtn) incBtn.addEventListener('click', onInc);
+    if (decBtn) decBtn.addEventListener('click', onDec);
+    if (addBtn) addBtn.addEventListener('click', onInc);
+    card.querySelectorAll('.cdo-variant-swatch').forEach((swatch) => {
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const vId = swatch.dataset.variantId;
+        const vPrice = toSafeNumber(swatch.dataset.price, price);
+        const vImg = toSafeImage(swatch.dataset.image) || image;
+        card
+          .querySelectorAll('.cdo-variant-swatch')
+          .forEach((s) => s.classList.remove('active'));
+        swatch.classList.add('active');
+        const mainImg = card.querySelector('img');
+        if (mainImg) mainImg.src = vImg;
+        const priceDiv = card.querySelector('.cdo-card-price');
+        if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100);
         const addBtn = card.querySelector('.cdo-add-btn');
         if (addBtn && card.dataset.soldout !== '1') {
           if (!swatch.classList.contains('cdo-variant-soldout')) {
-            addBtn.disabled = false; addBtn.style.opacity = '1'; addBtn.style.cursor = 'pointer';
+            addBtn.disabled = false;
+            addBtn.style.opacity = '1';
+            addBtn.style.cursor = 'pointer';
           } else {
-            addBtn.disabled = true; addBtn.style.opacity = '0.7'; addBtn.style.cursor = 'not-allowed';
+            addBtn.disabled = true;
+            addBtn.style.opacity = '0.7';
+            addBtn.style.cursor = 'not-allowed';
           }
         }
-        onInc({ id: vId, price: vPrice, image: vImg }); 
       });
     });
     // Sync card UI on load/tab switch
     updateCard(true);
   });
-  const resetBtn = document.getElementById('cdo-reset-btn'); const checkoutBtn = document.getElementById('cdo-checkout-btn'); const previewATC = document.getElementById('cdo-preview-atc-btn');
-  if (resetBtn) resetBtn.addEventListener('click', () => { Object.keys(selected).forEach(k => delete selected[k]); document.querySelectorAll('.cdo-card').forEach(c => { const qty = 0; const qtyEl = c.querySelector('.cdo-qty-value'); if (qtyEl) qtyEl.value = 0; c.style.border = `2px solid ${cfg.preview_item_border_color||'#f0f0f0'}`; const addBtn = c.querySelector('.cdo-add-btn'); if (addBtn) addBtn.textContent = cfg.add_btn_text || cfg.product_add_btn_text || 'Add'; const tick = c.querySelector('.cdo-tick'); if (tick) tick.classList.remove('visible'); }); updateAll(); });
-  if (checkoutBtn) checkoutBtn.addEventListener('click', () => {
-    const items = buildValidLineItems(); if (!items.length) { showToast('Please add at least one valid product.'); return; }
-    const checkoutUrl = rootUrl + 'cart/' + items.map(i => `${i.id}:${i.quantity}`).join(',') + '?checkout';
-    try { var templateName = (typeof template !== 'undefined' && template.name) ? template.name : (window.comboTemplateName || ''); var templateId = (typeof template !== 'undefined' && template.id) ? String(template.id) : (window.comboTemplateId || ''); var pageUrl = window.location.href; var shopDomain = (window.Shopify && window.Shopify.shop) ? window.Shopify.shop : window.location.hostname; var visitorId = sessionStorage.getItem('cdo_uid') || ''; if (!visitorId) { visitorId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('cdo_uid', visitorId); } var params = new URLSearchParams({ template_name: templateName, template_id: templateId, page_url: pageUrl, shop_domain: shopDomain, visitor_id: visitorId, redirect_url: checkoutUrl }); window.location.href = '/apps/combo/clicks.php?' + params.toString(); } catch (e) { window.location.assign(checkoutUrl); }
-  });
-  if (previewATC) previewATC.addEventListener('click', async () => { const items = buildValidLineItems(); if (!items.length) { showToast('Please add at least one valid product.'); return; } await fetch(rootUrl+'cart/add.js',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}); showToast('Added to cart!'); });
+  const resetBtn = document.getElementById('cdo-reset-btn');
+  const checkoutBtn = document.getElementById('cdo-checkout-btn');
+  const previewATC = document.getElementById('cdo-preview-atc-btn');
+  if (resetBtn)
+    resetBtn.addEventListener('click', () => {
+      Object.keys(selected).forEach((k) => delete selected[k]);
+      document.querySelectorAll('.cdo-card').forEach((c) => {
+        const qty = 0;
+        const qtyEl = c.querySelector('.cdo-qty-value');
+        if (qtyEl) qtyEl.value = 0;
+        c.style.border = `2px solid ${cfg.preview_item_border_color || '#f0f0f0'}`;
+        const addBtn = c.querySelector('.cdo-add-btn');
+        if (addBtn)
+          addBtn.textContent =
+            cfg.add_btn_text || cfg.product_add_btn_text || 'Add';
+        const tick = c.querySelector('.cdo-tick');
+        if (tick) tick.classList.remove('visible');
+      });
+      updateAll();
+    });
+  if (checkoutBtn)
+    checkoutBtn.addEventListener('click', () => {
+      const items = buildValidLineItems();
+      if (!items.length) {
+        showToast('Please add at least one valid product.');
+        return;
+      }
+      const checkoutUrl =
+        rootUrl +
+        'cart/' +
+        items.map((i) => `${i.id}:${i.quantity}`).join(',') +
+        '?checkout';
+      try {
+        var templateName =
+          typeof template !== 'undefined' && template.name
+            ? template.name
+            : window.comboTemplateName || '';
+        var templateId =
+          typeof template !== 'undefined' && template.id
+            ? String(template.id)
+            : window.comboTemplateId || '';
+        var pageUrl = window.location.href;
+        var shopDomain =
+          window.Shopify && window.Shopify.shop
+            ? window.Shopify.shop
+            : window.location.hostname;
+        var visitorId = sessionStorage.getItem('cdo_uid') || '';
+        if (!visitorId) {
+          visitorId =
+            'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+          sessionStorage.setItem('cdo_uid', visitorId);
+        }
+        var params = new URLSearchParams({
+          template_name: templateName,
+          template_id: templateId,
+          page_url: pageUrl,
+          shop_domain: shopDomain,
+          visitor_id: visitorId,
+          redirect_url: checkoutUrl,
+        });
+        window.location.href = '/apps/combo/clicks.php?' + params.toString();
+      } catch (e) {
+        window.location.assign(checkoutUrl);
+      }
+    });
+  if (previewATC)
+    previewATC.addEventListener('click', async () => {
+      const items = buildValidLineItems();
+      if (!items.length) {
+        showToast('Please add at least one valid product.');
+        return;
+      }
+      await fetch(rootUrl + 'cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      showToast('Added to cart!');
+    });
   updateAll();
 }
 
 /* ===================== MAIN BOOTSTRAP ===================== */
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
   window.comboSelected = {}; // Reset state on fresh page load
-  const shopDomain = (window.Shopify && window.Shopify.shop) ? window.Shopify.shop : window.location.hostname;
+  const shopDomain =
+    window.Shopify && window.Shopify.shop
+      ? window.Shopify.shop
+      : window.location.hostname;
   const root = document.getElementById('combo-builder-root');
   if (!root) return;
 
   let slug = '';
   const pathMatch = window.location.pathname.match(/\/pages\/([^/?#]+)/);
   if (pathMatch && pathMatch[1]) slug = pathMatch[1];
-  if (!slug) { return; }
+  if (!slug) {
+    return;
+  }
 
   try {
-    const isPreview = new URLSearchParams(window.location.search).has('preview');
+    const isPreview = new URLSearchParams(window.location.search).has(
+      'preview'
+    );
     const proxyEndpoint = `/apps/combo/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
-    const response = await fetch(proxyEndpoint); if (!response.ok) throw new Error(`API returned status ${response.status}`);
-    const result = await response.json(); const templates = result.templates || result.data || [];
+    const fallbackEndpoint = `https://darkblue-dotterel-303283.hostingersite.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
+
+    let response = await fetch(proxyEndpoint);
+    if (!response.ok && [401, 403, 404, 500].includes(response.status)) {
+      console.warn(
+        `[Combo Core] Proxy returned ${response.status}. Falling back to direct templates endpoint.`
+      );
+      response = await fetch(fallbackEndpoint, { credentials: 'omit' });
+    }
+
+    if (!response.ok) throw new Error(`API returned status ${response.status}`);
+    const result = await response.json();
+    const templates = result.templates || result.data || [];
 
     if (result.success && templates.length > 0) {
-      const template = isPreview ? templates[0] : (templates.find(t => t.active) || null);
+      const template = isPreview
+        ? templates[0]
+        : templates.find((t) => t.active) || null;
       if (!template) return;
       const cfg = template.config || {};
-      if (typeof cfg.show_sold_out_products === 'undefined') { cfg.show_sold_out_products = String(root?.dataset?.showSoldOutProducts || '').toLowerCase() === 'true'; }
+      if (typeof cfg.show_sold_out_products === 'undefined') {
+        cfg.show_sold_out_products =
+          String(root?.dataset?.showSoldOutProducts || '').toLowerCase() ===
+          'true';
+      }
       const layout = cfg.layout || 'layout1';
       let products = [];
       try {
         const collectionHandles = new Set();
         // Exhaustive collection handle discovery
         for (let i = 1; i <= 20; i++) {
-          if (cfg[`step_${i}_collection`]) collectionHandles.add(cfg[`step_${i}_collection`]);
+          if (cfg[`step_${i}_collection`])
+            collectionHandles.add(cfg[`step_${i}_collection`]);
           if (cfg[`col_${i}`]) collectionHandles.add(cfg[`col_${i}`]);
         }
         if (cfg.collection_handle) collectionHandles.add(cfg.collection_handle);
@@ -180,16 +485,18 @@ document.addEventListener('DOMContentLoaded', async function() {
             const allCollRes = await fetch('/collections.json');
             if (allCollRes.ok) {
               const allCollData = await allCollRes.json();
-              (allCollData.collections || []).slice(0, 5).forEach(c => collectionHandles.add(c.handle));
+              (allCollData.collections || [])
+                .slice(0, 5)
+                .forEach((c) => collectionHandles.add(c.handle));
             }
           } catch (e) {
             console.warn('[Combo] Failed to auto-fetch collections:', e);
           }
         }
 
-        const fetchPromises = [...collectionHandles].map(handle =>
+        const fetchPromises = [...collectionHandles].map((handle) =>
           fetch(`/collections/${handle}/products.json?limit=50`)
-            .then(r => r.ok ? r.json() : { products: [] })
+            .then((r) => (r.ok ? r.json() : { products: [] }))
             .catch(() => ({ products: [] }))
         );
 
@@ -205,25 +512,28 @@ document.addEventListener('DOMContentLoaded', async function() {
           for (let i = 1; i <= 20; i++) {
             const handle = cfg[`step_${i}_collection`];
             if (handle && handleToProducts.has(handle)) {
-              const stepProds = handleToProducts.get(handle).map(p => ({
+              const stepProds = handleToProducts.get(handle).map((p) => ({
                 id: `gid://shopify/Product/${p.id}`,
                 title: p.title,
                 handle: p.handle,
                 price: p.variants?.[0]?.price || '0.00',
                 image: p.images?.[0]?.src || '',
                 available: p.available,
-                inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0),
+                inventory_quantity: (p.variants || []).reduce(
+                  (s, v) => s + (parseInt(v.inventory_quantity) || 0),
+                  0
+                ),
                 collection_handle: handle,
                 step: i,
                 step_limit: cfg[`step_${i}_limit`] || null,
-                variants: (p.variants || []).map(v => ({
+                variants: (p.variants || []).map((v) => ({
                   id: `gid://shopify/ProductVariant/${v.id}`,
                   title: v.title,
                   price: v.price,
                   available: v.available,
                   inventory_quantity: v.inventory_quantity,
-                  image: v.featured_image?.src || null
-                }))
+                  image: v.featured_image?.src || null,
+                })),
               }));
               allProducts.push(...stepProds);
             }
@@ -231,45 +541,83 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else {
           // Normal flattening for Other Layouts
           handleToProducts.forEach((prods, handle) => {
-            const mapped = prods.map(p => ({
+            const mapped = prods.map((p) => ({
               id: `gid://shopify/Product/${p.id}`,
               title: p.title,
               handle: p.handle,
               price: p.variants?.[0]?.price || '0.00',
               image: p.images?.[0]?.src || '',
               available: p.available,
-              inventory_quantity: (p.variants || []).reduce((s, v) => s + (parseInt(v.inventory_quantity) || 0), 0),
+              inventory_quantity: (p.variants || []).reduce(
+                (s, v) => s + (parseInt(v.inventory_quantity) || 0),
+                0
+              ),
               collection_handle: handle,
-              variants: (p.variants || []).map(v => ({
+              variants: (p.variants || []).map((v) => ({
                 id: `gid://shopify/ProductVariant/${v.id}`,
                 title: v.title,
                 price: v.price,
                 available: v.available,
                 inventory_quantity: v.inventory_quantity,
-                image: v.featured_image?.src || null
-              }))
+                image: v.featured_image?.src || null,
+              })),
             }));
             allProducts.push(...mapped);
-          }
-          );
+          });
         }
         products = allProducts;
       } catch (fetchErr) {
         console.error('[Combo] Failed to fetch fresh products:', fetchErr);
         root.style.display = 'block';
-        root.innerHTML = '<div style="color:red;text-align:center;padding:40px;">Failed to load live products. Please refresh or contact support.</div>';
+        root.innerHTML =
+          '<div style="color:red;text-align:center;padding:40px;">Failed to load live products. Please refresh or contact support.</div>';
         return;
       }
       products = filterProductsByStock(products, cfg);
       window.comboTemplateName = template.title || template.name || slug;
-      window.comboTemplateId = String(template.id || template.external_id || '');
+      window.comboTemplateId = String(
+        template.id || template.external_id || ''
+      );
       trackVisit(window.comboTemplateName);
-      const mainContent = document.querySelector('main') || document.querySelector('#MainContent') || document.querySelector('.main-content') || document.querySelector('[role="main"]');
-      if (mainContent) { mainContent.innerHTML = ''; mainContent.appendChild(root); }
+      const mainContent =
+        document.querySelector('main') ||
+        document.querySelector('#MainContent') ||
+        document.querySelector('.main-content') ||
+        document.querySelector('[role="main"]');
+      if (mainContent) {
+        mainContent.innerHTML = '';
+        mainContent.appendChild(root);
+      }
       root.style.display = 'block';
-      if (isPreview && !template.active) { const banner = document.createElement('div'); banner.style.cssText = 'position:fixed;top:0;left:0;width:100%;z-index:99999;background:#ff6b00;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;'; banner.innerHTML = '🔒 Preview Mode — This combo is <strong>inactive</strong>. <a href="' + window.location.href.split('?')[0] + '" style="color:#fff;text-decoration:underline;margin-left:8px;">Exit Preview</a>'; document.body.prepend(banner); document.body.style.paddingTop = '44px'; }
-      if (layout === 'layout1') renderLayout1(cfg, products, root); else if (layout === 'layout2') renderLayout2(cfg, products, root, template); else if (layout === 'layout3') renderLayout3(cfg, products, root, template); else renderLayoutGrid(cfg, products, root);
-      if (cfg.custom_css) { const styleEl = document.createElement('style'); styleEl.innerHTML = `#combo-builder-root {\n${cfg.custom_css}\n}`; root.appendChild(styleEl); }
+      if (isPreview && !template.active) {
+        const banner = document.createElement('div');
+        banner.style.cssText =
+          'position:fixed;top:0;left:0;width:100%;z-index:99999;background:#ff6b00;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;';
+        banner.innerHTML =
+          '🔒 Preview Mode — This combo is <strong>inactive</strong>. <a href="' +
+          window.location.href.split('?')[0] +
+          '" style="color:#fff;text-decoration:underline;margin-left:8px;">Exit Preview</a>';
+        document.body.prepend(banner);
+        document.body.style.paddingTop = '44px';
+      }
+      if (layout === 'layout1') renderLayout1(cfg, products, root);
+      else if (layout === 'layout2')
+        renderLayout2(cfg, products, root, template);
+      else if (layout === 'layout3')
+        renderLayout3(cfg, products, root, template);
+      else renderLayoutGrid(cfg, products, root);
+      if (cfg.custom_css) {
+        const styleEl = document.createElement('style');
+        styleEl.innerHTML = `#combo-builder-root {\n${cfg.custom_css}\n}`;
+        root.appendChild(styleEl);
+      }
     }
-  } catch (err) { console.error('[Combo Builder] Failed to load:', err); if (root) { root.style.display = 'block'; root.innerHTML = '<div style="text-align:center;padding:40px;color:red;">Failed to load combo builder.</div>'; } }
+  } catch (err) {
+    console.error('[Combo Builder] Failed to load:', err);
+    if (root) {
+      root.style.display = 'block';
+      root.innerHTML =
+        '<div style="text-align:center;padding:40px;color:red;">Failed to load combo builder.</div>';
+    }
+  }
 });

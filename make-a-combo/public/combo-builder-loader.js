@@ -122,11 +122,35 @@
                 fetchUrl = isStorefront ? `/apps/combo/templates.php?handle=${searchKey.toLowerCase()}` : `/api/templates.php?handle=${searchKey.toLowerCase()}`;
             }
 
+            const shopDomainForFallback = (window.Shopify && (window.Shopify.shop || window.Shopify.shop_domain)) || '';
+            const fallbackBaseUrl = appUrl && !appUrl.includes('your-app-domain') ? appUrl : '';
+            const fallbackTemplateUrl = (() => {
+                if (!fallbackBaseUrl) return '';
+                const params = new URLSearchParams();
+                if (templateId && templateId !== 'null') {
+                    params.set('id', templateId);
+                } else {
+                    params.set('handle', String(searchKey || '').toLowerCase());
+                }
+                if (shopDomainForFallback) params.set('shop', shopDomainForFallback);
+                return `${fallbackBaseUrl}/api/templates?${params.toString()}`;
+            })();
+
             console.log("Combo Builder: Fetching design from:", fetchUrl);
 
             const checkForUpdates = async (isPolling = false) => {
                 try {
-                    const response = await fetch(fetchUrl);
+                    let response = await fetch(fetchUrl);
+                    if (
+                        !response.ok &&
+                        isStorefront &&
+                        fallbackTemplateUrl &&
+                        (response.status === 401 || response.status === 403 || response.status === 404 || response.status === 500)
+                    ) {
+                        console.warn(`Combo Builder: App proxy returned ${response.status}. Falling back to ${fallbackTemplateUrl}`);
+                        response = await fetch(fallbackTemplateUrl, { credentials: 'omit' });
+                    }
+
                     if (!response.ok) {
                         if (!isPolling) {
                             root.innerHTML = `<div style="color: red;"><b>Combo Builder Error:</b> Server returned ${response.status}. Please check your App Connection.</div>`;
@@ -263,7 +287,8 @@
         quantities: {},
         activeTab: 'all',
         collectionProducts: {},
-        products: []
+        products: [],
+        selectedVariantByProduct: {}
     };
 
     function renderError(msg) {
@@ -585,10 +610,22 @@
                         const instances = state.selectedProducts.filter(p => String(p.id) === String(product.id));
                         const qty = instances.length;
                         const isSelected = qty > 0;
-                        const price = product.variants?.[0]?.price || "0.00";
+                        const variants = Array.isArray(product.variants) ? product.variants : [];
+                        const selectedVariantId = String(state.selectedVariantByProduct[String(product.id)] || '').trim();
+                        const selectedVariant = variants.find(v => String(v.id) === selectedVariantId) || variants[0] || null;
+                        const price = selectedVariant?.price || "0.00";
                         const vendor = cfg.vendor || "Brand";
                         let imgSrc = product.images?.[0]?.src || product.featured_image || "https://placehold.co/300x300?text=No+Image";
                         const borderColor = isSelected ? (cfg.selection_highlight_color || '#000') : '#eee';
+                        const hasVariantChoice = variants.length > 1;
+                        const variantSelectHtml = hasVariantChoice
+                            ? `
+                                <select class="combo-variant-select" data-id="${product.id}" style="width:100%;margin-bottom:10px;padding:8px;border:1px solid #ddd;border-radius:6px;background:#fff;font-size:12px;">
+                                    <option value="">Select variant</option>
+                                    ${variants.map(v => `<option value="${v.id}" ${String(v.id) === selectedVariantId ? 'selected' : ''}>${v.title || 'Variant'}</option>`).join('')}
+                                </select>
+                            `
+                            : '';
 
                         cardsHtml += `
                             <div class="combo-product-card" style="border: 1px solid ${borderColor}; border-radius: ${cfg.card_border_radius || 12}px; background: #fff; display: flex; flex-direction: column; position: relative; overflow: hidden;">
@@ -600,6 +637,7 @@
                                     <div style="font-weight: 600; font-size: ${titleSize}px; line-height: 1.3; margin-bottom: 4px; color: #111;">${product.title}</div>
                                     <div style="font-size: 11px; color: #888; font-weight: 600; margin-bottom: 8px;">${vendor}</div>
                                     <div class="combo-product-price" data-base-price="${price}" style="font-weight: 800; font-size: ${priceSize}px; margin-bottom: 12px; color: #1a1a1a;"></div>
+                                    ${variantSelectHtml}
                                     <div style="display: flex; align-items: center; min-height: 38px;">
                                         ${!isSelected ? `
                                             <button type="button" class="combo-add-btn" data-id="${product.id}" style="width: 100%; background: #eafff2; color: #1a1a1a; border: none; padding: 9px; border-radius: 6px; cursor: pointer; font-weight: 800; font-size: 11px; text-transform: uppercase;">Add to Cart</button>
@@ -777,6 +815,34 @@
     }
 
     function attachEvents() {
+        const getSelectedVariantPayload = (product) => {
+            const variants = Array.isArray(product?.variants) ? product.variants : [];
+            if (!variants.length) return null;
+
+            const productId = String(product.id);
+            const selectedVariantId = String(state.selectedVariantByProduct[productId] || '').trim();
+            const selectedVariant = variants.find(v => String(v.id) === selectedVariantId);
+
+            if (variants.length > 1 && !selectedVariant) {
+                showToast('Please select a variant before adding to cart.', true);
+                return null;
+            }
+
+            const variant = selectedVariant || variants[0];
+            return {
+                variantId: String(variant.id),
+                price: variant.price,
+            };
+        };
+
+        root.querySelectorAll('.combo-variant-select').forEach(select => {
+            select.onchange = (e) => {
+                const productId = String(select.getAttribute('data-id') || '');
+                state.selectedVariantByProduct[productId] = String(e.target.value || '').trim();
+                render();
+            };
+        });
+
         // Tab Clicking
         root.querySelectorAll('.combo-tab').forEach(tab => {
             tab.onclick = () => {
@@ -799,11 +865,13 @@
                         const productsList = state.products && state.products.length > 0 ? state.products : mockProducts;
                         const product = productsList.find(p => String(p.id) === String(id));
                         if (product) {
+                            const selectedVariantPayload = getSelectedVariantPayload(product);
+                            if (!selectedVariantPayload) return;
                             state.selectedProducts.push({
                                 id: product.id,
                                 title: product.title,
-                                price: product.variants[0].price,
-                                variantId: product.variants[0].id,
+                                price: selectedVariantPayload.price,
+                                variantId: selectedVariantPayload.variantId,
                                 image: product.images?.[0]?.src || product.featured_image || "https://placehold.co/100"
                             });
                         }
@@ -832,11 +900,13 @@
                     const productsList = state.products && state.products.length > 0 ? state.products : mockProducts;
                     const product = productsList.find(p => String(p.id) === String(id));
                     if (product) {
+                        const selectedVariantPayload = getSelectedVariantPayload(product);
+                        if (!selectedVariantPayload) return;
                         state.selectedProducts.push({
                             id: product.id,
                             title: product.title,
-                            price: product.variants[0].price,
-                            variantId: product.variants[0].id,
+                            price: selectedVariantPayload.price,
+                            variantId: selectedVariantPayload.variantId,
                             image: product.images?.[0]?.src || product.featured_image || "https://placehold.co/100"
                         });
                         render();

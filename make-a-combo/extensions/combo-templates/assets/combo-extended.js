@@ -892,6 +892,7 @@ function renderProductCard(cfg, product) {
   const variants = product.variants || [];
   const hasVariants = variants.length > 1;
   const displayMode = cfg.product_card_variants_display || 'popup';
+  const requiresVariantSelection = hasVariants && displayMode !== 'popup';
   const hoverEnabled =
     cfg.enable_product_hover === true ||
     String(cfg.enable_product_hover || '').toLowerCase() === 'true';
@@ -910,6 +911,30 @@ function renderProductCard(cfg, product) {
         </div>`;
         })
         .join('')}
+    </div>`;
+  }
+
+  let staticVariantsHtml = '';
+  if (hasVariants && displayMode === 'static') {
+    const placeholder = cfg.variant_select_placeholder || 'Select a variant';
+    staticVariantsHtml = `
+    <div class="cdo-variant-select-wrap" style="margin-top:${cfg.variant_select_margin_top ?? 10}px;margin-bottom:${cfg.variant_select_margin_bottom ?? 12}px;">
+      <select class="cdo-variant-select" style="width:100%;background:${cfg.variant_select_bg || '#f9f9f9'};border:1px solid ${cfg.variant_select_border_color || '#e0e0e0'};color:${cfg.variant_select_text_color || '#333333'};border-radius:${cfg.variant_select_border_radius ?? 8}px;font-size:${cfg.variant_select_font_size ?? 13}px;padding:${cfg.variant_select_padding_vertical ?? 9}px ${cfg.variant_select_padding_horizontal ?? 12}px;outline:none;">
+        <option value="">${escapeHtml(placeholder)}</option>
+        ${variants
+          .map((v) => {
+            const vId = (v.id || '').replace(
+              'gid://shopify/ProductVariant/',
+              ''
+            );
+            const vTitle =
+              v.title === 'Default Title'
+                ? (product && product.title) || 'Default'
+                : v.title || 'Variant';
+            return `<option value="${vId}" data-price="${v.price}" data-image="${v.image || product.image || ''}">${escapeHtml(vTitle)}</option>`;
+          })
+          .join('')}
+      </select>
     </div>`;
   }
 
@@ -933,6 +958,7 @@ function renderProductCard(cfg, product) {
     </div>
     <div style="font-size:${titleSize}px;font-weight:700;margin-bottom:4px;color:${cfg.text_color || '#111'};line-height:1.3;">${product.title || ''}</div>
     <div style="font-weight:800;font-size:${priceSize}px;color:${cfg.primary_color || cfg.add_btn_bg || '#000'};margin-bottom:10px;" class="cdo-card-price">${formatMoney(product.price)}</div>
+    ${staticVariantsHtml}
     <div class="cdo-card-actions" style="margin-top:auto;display:flex;align-items:center;gap:6px;${showQty && isMobile ? 'flex-wrap:wrap;' : ''}">
       ${
         showQty
@@ -945,7 +971,8 @@ function renderProductCard(cfg, product) {
           : ''
       }
       <button type="button" class="cdo-add-btn"
-        style="flex:1;background:${addBtnBg};color:${addBtnColor};border:none;padding:${isMobile ? 10 : 8}px 12px;border-radius:${addBtnRadius}px;font-weight:${addBtnW};font-size:${addBtnSize}px;cursor:pointer;min-height:40px;">
+        ${requiresVariantSelection ? 'disabled aria-disabled="true"' : ''}
+        style="flex:1;background:${addBtnBg};color:${addBtnColor};border:none;padding:${isMobile ? 10 : 8}px 12px;border-radius:${addBtnRadius}px;font-weight:${addBtnW};font-size:${addBtnSize}px;cursor:${requiresVariantSelection ? 'not-allowed' : 'pointer'};opacity:${requiresVariantSelection ? 0.55 : 1};min-height:40px;">
         ${addBtnText}
       </button>
     </div>
@@ -1456,9 +1483,50 @@ function bindLayout1Logic(cfg, products) {
         qty > 0
           ? cfg.product_add_btn_text || 'Added'
           : cfg.product_add_btn_text || cfg.add_btn_text || 'Add';
+
+    const product = getProductByCardId(id);
+    const displayMode = cfg.product_card_variants_display || 'popup';
+    const requiresSelection =
+      product && (product.variants || []).length > 1 && displayMode !== 'popup';
+    if (requiresSelection) {
+      const pickedVariant = getSelectedVariantFromCard(card, 0, '');
+      setCardAddEnabled(card, qty > 0 || !!pickedVariant);
+    }
+
     const tick = card.querySelector('.cdo-tick');
     if (tick) tick.classList.toggle('visible', qty > 0);
     updateTotals();
+  }
+
+  function getSelectedVariantFromCard(card, fallbackPrice, fallbackImage) {
+    const selectEl = card.querySelector('.cdo-variant-select');
+    if (selectEl && String(selectEl.value || '').trim()) {
+      const selectedOption = selectEl.options[selectEl.selectedIndex];
+      return {
+        id: String(selectEl.value).trim(),
+        price: toSafeNumber(selectedOption?.dataset?.price, fallbackPrice),
+        image: selectedOption?.dataset?.image || fallbackImage,
+      };
+    }
+
+    const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
+    if (activeSwatch) {
+      return {
+        id: String(activeSwatch.dataset.variantId || '').trim(),
+        price: toSafeNumber(activeSwatch.dataset.price, fallbackPrice),
+        image: activeSwatch.dataset.image || fallbackImage,
+      };
+    }
+
+    return null;
+  }
+
+  function setCardAddEnabled(card, enabled) {
+    const addBtn = card.querySelector('.cdo-add-btn');
+    if (!addBtn) return;
+    addBtn.disabled = !enabled;
+    addBtn.style.opacity = enabled ? '1' : '0.55';
+    addBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
 
   // Variant popup
@@ -1614,18 +1682,14 @@ function bindLayout1Logic(cfg, products) {
       }
 
       if (hasVariants) {
-        // Always require explicit variant selection
-        const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-        if (
-          !activeSwatch ||
-          !/^\d+$/.test(String(activeSwatch.dataset.variantId || '').trim())
-        ) {
+        const pickedVariant = getSelectedVariantFromCard(card, price, image);
+        if (!pickedVariant || !/^\d+$/.test(String(pickedVariant.id || ''))) {
           showToast('Please select a variant before adding to cart.');
           return;
         }
-        let variantId = String(activeSwatch.dataset.variantId).trim();
-        let variantPrice = toSafeNumber(activeSwatch.dataset.price, price);
-        let variantImage = activeSwatch.dataset.image || image;
+        let variantId = String(pickedVariant.id).trim();
+        let variantPrice = toSafeNumber(pickedVariant.price, price);
+        let variantImage = pickedVariant.image || image;
         if (!selected[variantId])
           selected[variantId] = {
             id: variantId,
@@ -1658,9 +1722,13 @@ function bindLayout1Logic(cfg, products) {
     };
     const onDec = () => {
       // Find by product id directly, or by cardId (for variant selections)
-      const key = selected[id]
-        ? id
-        : Object.keys(selected).find((k) => selected[k].cardId === id);
+      const pickedVariant = getSelectedVariantFromCard(card, price, image);
+      const pickedVariantId = String(pickedVariant?.id || '').trim();
+      const key = selected[pickedVariantId]
+        ? pickedVariantId
+        : selected[id]
+          ? id
+          : Object.keys(selected).find((k) => selected[k].cardId === id);
       if (key) {
         selected[key].qty--;
         if (selected[key].qty <= 0) delete selected[key];
@@ -1676,10 +1744,10 @@ function bindLayout1Logic(cfg, products) {
     if (decBtn) decBtn.addEventListener('click', onDec);
     if (addBtn)
       addBtn.addEventListener('click', () => {
-        // If product has multiple variants, require selection
-        if (hasVariants) {
-          const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-          if (!activeSwatch) {
+        const displayMode = cfg.product_card_variants_display || 'popup';
+        if (hasVariants && displayMode !== 'popup') {
+          const pickedVariant = getSelectedVariantFromCard(card, price, image);
+          if (!pickedVariant || !/^\d+$/.test(String(pickedVariant.id || ''))) {
             showToast('Please select a variant before adding to cart.');
             return;
           }
@@ -1694,7 +1762,6 @@ function bindLayout1Logic(cfg, products) {
     card.querySelectorAll('.cdo-variant-swatch').forEach((swatch) => {
       swatch.addEventListener('click', (e) => {
         e.stopPropagation();
-        const vId = swatch.dataset.variantId;
         const vPrice = parseFloat(swatch.dataset.price);
         const vImg = swatch.dataset.image;
 
@@ -1709,12 +1776,27 @@ function bindLayout1Logic(cfg, products) {
         if (mainImg) mainImg.src = vImg;
         const priceDiv = card.querySelector('.cdo-card-price');
         if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100);
-
-        // Immediate add for swatch click in hover mode?
-        // Let's make it behave as "select and add" if they want
-        onInc({ id: vId, price: vPrice, image: vImg });
+        setCardAddEnabled(card, true);
       });
     });
+
+    const variantSelect = card.querySelector('.cdo-variant-select');
+    if (variantSelect) {
+      variantSelect.addEventListener('change', () => {
+        const option = variantSelect.options[variantSelect.selectedIndex];
+        const hasVariant = String(variantSelect.value || '').trim().length > 0;
+        const vPrice = toSafeNumber(option?.dataset?.price, price);
+        const vImg = option?.dataset?.image || image;
+
+        const mainImg = card.querySelector('img');
+        if (mainImg && vImg) mainImg.src = vImg;
+        const priceDiv = card.querySelector('.cdo-card-price');
+        if (priceDiv && hasVariant)
+          priceDiv.textContent = formatMoney(vPrice * 100);
+
+        setCardAddEnabled(card, hasVariant);
+      });
+    }
   });
 
   // Reset
@@ -2515,6 +2597,37 @@ function bindStandardLogic({ cfg, products }) {
     }
   }
 
+  function getSelectedVariantFromCard(card, fallbackPrice, fallbackImage) {
+    const selectEl = card.querySelector('.cdo-variant-select');
+    if (selectEl && String(selectEl.value || '').trim()) {
+      const selectedOption = selectEl.options[selectEl.selectedIndex];
+      return {
+        id: String(selectEl.value).trim(),
+        price: toSafeNumber(selectedOption?.dataset?.price, fallbackPrice),
+        image: toSafeImage(selectedOption?.dataset?.image) || fallbackImage,
+      };
+    }
+
+    const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
+    if (activeSwatch && String(activeSwatch.dataset.variantId || '').trim()) {
+      return {
+        id: String(activeSwatch.dataset.variantId).trim(),
+        price: toSafeNumber(activeSwatch.dataset.price, fallbackPrice),
+        image: toSafeImage(activeSwatch.dataset.image) || fallbackImage,
+      };
+    }
+
+    return null;
+  }
+
+  function setCardAddEnabled(card, enabled) {
+    const addBtn = card.querySelector('.cdo-add-btn');
+    if (!addBtn) return;
+    addBtn.disabled = !enabled;
+    addBtn.style.opacity = enabled ? '1' : '0.55';
+    addBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+  }
+
   // Bind events to newly rendered product cards
   document.querySelectorAll('.cdo-card').forEach((card) => {
     const id = card.dataset.id;
@@ -2536,6 +2649,17 @@ function bindStandardLogic({ cfg, products }) {
           qty > 0
             ? cfg.product_add_btn_text || 'Added'
             : cfg.product_add_btn_text || cfg.add_btn_text || 'Add';
+
+      const displayMode = cfg.product_card_variants_display || 'popup';
+      const requiresSelection =
+        product &&
+        (product.variants || []).length > 1 &&
+        displayMode !== 'popup';
+      if (requiresSelection) {
+        const pickedVariant = getSelectedVariantFromCard(card, price, image);
+        setCardAddEnabled(card, qty > 0 || !!pickedVariant);
+      }
+
       const tick = card.querySelector('.cdo-tick');
       if (tick) tick.classList.toggle('visible', qty > 0);
       updateAll();
@@ -2591,15 +2715,27 @@ function bindStandardLogic({ cfg, products }) {
         }
       }
 
+      if (
+        product &&
+        (product.variants || []).length > 1 &&
+        displayMode !== 'popup'
+      ) {
+        const pickedVariant = getSelectedVariantFromCard(card, price, image);
+        if (!pickedVariant || !/^\d+$/.test(String(pickedVariant.id || ''))) {
+          showToast('Please select a variant before adding to cart.');
+          return;
+        }
+      }
+
       // Always store variant IDs in selected so checkout/cart permalink is valid.
       let variantId = id;
       let variantPrice = price;
       let variantImage = image;
-      const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-      if (activeSwatch && activeSwatch.dataset.variantId) {
-        variantId = String(activeSwatch.dataset.variantId).trim();
-        variantPrice = toSafeNumber(activeSwatch.dataset.price, price);
-        variantImage = toSafeImage(activeSwatch.dataset.image) || image;
+      const pickedVariant = getSelectedVariantFromCard(card, price, image);
+      if (pickedVariant && pickedVariant.id) {
+        variantId = String(pickedVariant.id).trim();
+        variantPrice = toSafeNumber(pickedVariant.price, price);
+        variantImage = toSafeImage(pickedVariant.image) || image;
       } else if (product && (product.variants || []).length > 0) {
         const firstVariant = product.variants[0];
         variantId = normalizeVariantId(firstVariant.id) || variantId;
@@ -2625,14 +2761,13 @@ function bindStandardLogic({ cfg, products }) {
     };
     const onDec = () => {
       let key = null;
-      if (selected[id]) {
+      const pickedVariant = getSelectedVariantFromCard(card, price, image);
+      const pickedVariantId = String(pickedVariant?.id || '').trim();
+      if (pickedVariantId && selected[pickedVariantId]) {
+        key = pickedVariantId;
+      } else if (selected[id]) {
         key = id;
       } else {
-        const activeSwatch = card.querySelector('.cdo-variant-swatch.active');
-        const activeVariantId = activeSwatch
-          ? activeSwatch.dataset.variantId
-          : null;
-        if (activeVariantId && selected[activeVariantId]) key = activeVariantId;
         if (!key)
           key = Object.keys(selected).find((k) => selected[k].cardId === id);
       }
@@ -2655,7 +2790,6 @@ function bindStandardLogic({ cfg, products }) {
     card.querySelectorAll('.cdo-variant-swatch').forEach((swatch) => {
       swatch.addEventListener('click', (e) => {
         e.stopPropagation();
-        const vId = swatch.dataset.variantId;
         const vPrice = toSafeNumber(swatch.dataset.price, price);
         const vImg = toSafeImage(swatch.dataset.image) || image;
 
@@ -2668,10 +2802,27 @@ function bindStandardLogic({ cfg, products }) {
         if (mainImg) mainImg.src = vImg;
         const priceDiv = card.querySelector('.cdo-card-price');
         if (priceDiv) priceDiv.textContent = formatMoney(vPrice * 100);
-
-        onInc({ id: vId, price: vPrice, image: vImg });
+        setCardAddEnabled(card, true);
       });
     });
+
+    const variantSelect = card.querySelector('.cdo-variant-select');
+    if (variantSelect) {
+      variantSelect.addEventListener('change', () => {
+        const option = variantSelect.options[variantSelect.selectedIndex];
+        const hasVariant = String(variantSelect.value || '').trim().length > 0;
+        const vPrice = toSafeNumber(option?.dataset?.price, price);
+        const vImg = toSafeImage(option?.dataset?.image) || image;
+
+        const mainImg = card.querySelector('img');
+        if (mainImg && vImg) mainImg.src = vImg;
+        const priceDiv = card.querySelector('.cdo-card-price');
+        if (priceDiv && hasVariant)
+          priceDiv.textContent = formatMoney(vPrice * 100);
+
+        setCardAddEnabled(card, hasVariant);
+      });
+    }
 
     // SYNC: Restore visual state from persistent selection for this card
     // This is critical â€” when returning to a previously visited tab, cards must
@@ -2688,6 +2839,59 @@ function bindStandardLogic({ cfg, products }) {
       if (tick) tick.classList.add('visible');
     }
   });
+
+  const popupAddBtn = document.getElementById('cdo-variant-add');
+  if (popupAddBtn && !popupAddBtn.dataset.cdoStandardBound) {
+    popupAddBtn.dataset.cdoStandardBound = '1';
+    popupAddBtn.addEventListener('click', () => {
+      const pendingCard = window.__cdoPendingCard;
+      if (!pendingCard) return;
+
+      const total = Object.values(selected).reduce((s, i) => s + i.qty, 0);
+      if (total >= maxSel) {
+        showToast(limitMsg);
+        return;
+      }
+
+      const variantId = String(popupAddBtn.dataset.variantId || '').trim();
+      const price = toSafeNumber(popupAddBtn.dataset.price);
+      const image =
+        toSafeImage(popupAddBtn.dataset.image) || pendingCard.dataset.image;
+      const cardId = String(pendingCard.dataset.id || '').trim();
+
+      if (!/^\d+$/.test(variantId)) {
+        showToast('Please select a valid variant.');
+        return;
+      }
+
+      if (!selected[variantId]) {
+        selected[variantId] = {
+          id: variantId,
+          price,
+          image,
+          qty: 1,
+          cardId,
+        };
+      } else {
+        selected[variantId].qty++;
+      }
+
+      const qty = getCardSelectionQty(cardId);
+      const qtyEl = pendingCard.querySelector('.cdo-qty-value');
+      if (qtyEl) qtyEl.value = qty;
+      pendingCard.style.border = `2px solid ${hl}`;
+      const addBtn = pendingCard.querySelector('.cdo-add-btn');
+      if (addBtn) addBtn.textContent = cfg.product_add_btn_text || 'Added';
+      const tick = pendingCard.querySelector('.cdo-tick');
+      if (tick) tick.classList.add('visible');
+
+      updateAll();
+
+      const overlay = document.getElementById('cdo-variant-overlay');
+      if (overlay) overlay.style.display = 'none';
+      window.__cdoPendingCard = null;
+    });
+  }
 
   // Guard against duplicate event listeners on persistent preview bar buttons.
   // These buttons survive tab switches (they're outside the products grid),
@@ -2708,6 +2912,16 @@ function bindStandardLogic({ cfg, products }) {
         if (addBtn)
           addBtn.textContent =
             cfg.add_btn_text || cfg.product_add_btn_text || 'Add';
+
+        const displayMode = cfg.product_card_variants_display || 'popup';
+        const cardId = String(c.dataset.id || '').trim();
+        const cardProduct = getProductByCardId(cardId);
+        const requiresSelection =
+          cardProduct &&
+          (cardProduct.variants || []).length > 1 &&
+          displayMode !== 'popup';
+        if (requiresSelection) setCardAddEnabled(c, false);
+
         const tick = c.querySelector('.cdo-tick');
         if (tick) tick.classList.remove('visible');
       });
@@ -2844,7 +3058,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     );
     // ONLY use the Shopify App Proxy endpoint â€” /apps/combo/templates.php
     const proxyEndpoint = `/apps/combo/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
-    const response = await fetch(proxyEndpoint);
+    const fallbackEndpoint = `https://darkblue-dotterel-303283.hostingersite.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
+
+    let response = await fetch(proxyEndpoint);
+    if (!response.ok && [401, 403, 404, 500].includes(response.status)) {
+      console.warn(
+        `[Combo Extended] Proxy returned ${response.status}. Falling back to direct templates endpoint.`
+      );
+      response = await fetch(fallbackEndpoint, { credentials: 'omit' });
+    }
 
     if (!response.ok) {
       throw new Error(`API returned status ${response.status}`);
