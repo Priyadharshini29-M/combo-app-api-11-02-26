@@ -16,7 +16,6 @@ import {
   getShopifyDiscounts,
 } from '../utils/api-helpers';
 import { EnableThemeButton } from '../components/EnableThemeButton';
-import { ShopifyAnalytics } from '../components/ShopifyAnalytics';
 import { readAppEmbedState } from '../utils/app-embed.server';
 
 import {
@@ -28,10 +27,474 @@ import {
   Text,
   Icon,
   Badge,
-  List,
-  Divider,
 } from '@shopify/polaris';
 import { HomeIcon } from '@shopify/polaris-icons';
+
+function DashboardLayout({ left, rightTop, rightBottom, steps, cta }) {
+  return (
+    <BlockStack gap="600">
+      <style>{`
+        .dashboard-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.7fr) minmax(290px, 1fr);
+          gap: 16px;
+          align-items: stretch;
+        }
+        .dashboard-right-column {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          min-height: 100%;
+        }
+        .dashboard-right-top {
+          flex: 0 0 auto;
+        }
+        .dashboard-right-bottom {
+          flex: 1 1 auto;
+          display: flex;
+          min-height: 0;
+        }
+        .dashboard-steps-grid {
+          display: block;
+        }
+        .dashboard-steps-carousel {
+          overflow: hidden;
+          width: 100%;
+          position: relative;
+          padding: 0 44px;
+        }
+        .dashboard-steps-track {
+          display: flex;
+          flex-wrap: nowrap;
+          gap: 12px;
+          transition: transform 220ms ease;
+          will-change: transform;
+        }
+        .dashboard-step-card {
+          min-width: 240px;
+          flex: 0 0 240px;
+        }
+        .dashboard-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 32px;
+          height: 32px;
+          border-radius: 999px;
+          border: 1px solid #c9cccf;
+          background: #ffffff;
+          color: #1f2937;
+          font-size: 20px;
+          line-height: 1;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          z-index: 1;
+        }
+        .dashboard-arrow:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+        .dashboard-arrow-left {
+          left: 4px;
+        }
+        .dashboard-arrow-right {
+          right: 4px;
+        }
+        @media (max-width: 900px) {
+          .dashboard-main-grid {
+            grid-template-columns: 1fr;
+          }
+          .dashboard-steps-carousel {
+            padding: 0 36px;
+          }
+        }
+      `}</style>
+      <div className="dashboard-main-grid">
+        <div>{left}</div>
+        <div className="dashboard-right-column">
+          <div className="dashboard-right-top">{rightTop}</div>
+          <div className="dashboard-right-bottom">{rightBottom}</div>
+        </div>
+      </div>
+      {steps}
+      {cta}
+    </BlockStack>
+  );
+}
+
+function VideoCard({ title, subtitle, helperText }) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text variant="headingMd" as="h3">
+          {title}
+        </Text>
+        <Text variant="bodySm" tone="subdued">
+          {subtitle}
+        </Text>
+
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.18)',
+            backgroundColor: '#111827',
+          }}
+        >
+          <div
+            style={{
+              aspectRatio: '16 / 9',
+              width: '100%',
+              backgroundImage:
+                'linear-gradient(180deg, rgba(2,6,23,0.22) 0%, rgba(2,6,23,0.64) 100%), url("https://images.unsplash.com/photo-1551281044-8f6d8b47d4d1?auto=format&fit=crop&w=1400&q=80")',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+
+          <button
+            type="button"
+            aria-label="Play preview"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 58,
+              height: 58,
+              borderRadius: '999px',
+              border: '1px solid rgba(255,255,255,0.6)',
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'default',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 0,
+                height: 0,
+                borderTop: '9px solid transparent',
+                borderBottom: '9px solid transparent',
+                borderLeft: '14px solid #f8fafc',
+                marginLeft: 3,
+              }}
+            />
+          </button>
+        </div>
+
+        <Text variant="bodySm" tone="subdued">
+          {helperText}
+        </Text>
+      </BlockStack>
+    </Card>
+  );
+}
+
+function StatusCard({
+  appStatus,
+  isToggling,
+  onToggleClick,
+  shopName,
+  onThemeToggle,
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text variant="headingMd" as="h3">
+            App Status
+          </Text>
+          <Badge tone={appStatus ? 'success' : 'attention'}>
+            {appStatus ? 'Active' : 'Action Needed'}
+          </Badge>
+        </InlineStack>
+
+        <Text variant="bodySm" tone="subdued">
+          {appStatus
+            ? 'App embed is live on your storefront.'
+            : 'Enable app embed to publish combo pages to your theme.'}
+        </Text>
+
+        <BlockStack gap="200">
+          <Button
+            variant={appStatus ? 'secondary' : 'primary'}
+            tone={appStatus ? 'critical' : 'success'}
+            loading={isToggling}
+            disabled={isToggling}
+            onClick={onToggleClick}
+            fullWidth
+          >
+            {appStatus ? 'Disable in App' : 'Enable in App'}
+          </Button>
+
+          <EnableThemeButton
+            shopName={shopName}
+            onToggle={onThemeToggle}
+            children={
+              appStatus ? 'Disable in Theme Editor' : 'Enable in Theme Editor'
+            }
+          />
+        </BlockStack>
+      </BlockStack>
+    </Card>
+  );
+}
+
+function PlanCard({ fillHeight = false }) {
+  return (
+    <div style={{ width: '100%', height: fillHeight ? '100%' : 'auto' }}>
+      <Card>
+        <div
+          style={{
+            minHeight: 230,
+            height: fillHeight ? '100%' : 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <InlineStack align="space-between" blockAlign="center">
+            <Text variant="headingMd" as="h3">
+              Plan
+            </Text>
+            <Badge tone="info">Starter</Badge>
+          </InlineStack>
+
+          <div style={{ marginTop: 10 }}>
+            <Text variant="bodySm" tone="subdued">
+              Upgrade to unlock unlimited combo pages and premium templates.
+            </Text>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <BlockStack gap="100">
+              <Text variant="bodySm" tone="subdued">
+                • 1 active combo page
+              </Text>
+              <Text variant="bodySm" tone="subdued">
+                • Basic analytics and reporting
+              </Text>
+              <Text variant="bodySm" tone="subdued">
+                • Standard storefront support
+              </Text>
+            </BlockStack>
+          </div>
+
+          <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+            <Link
+              to="/app/plan"
+              prefetch="intent"
+              style={{ textDecoration: 'none', width: '100%' }}
+            >
+              <Button variant="secondary" fullWidth>
+                Upgrade Plan
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepsSection() {
+  const [startIndex, setStartIndex] = useState(0);
+  const [cardsPerView, setCardsPerView] = useState(3);
+
+  const steps = [
+    {
+      id: '01',
+      title: 'Pick a Layout',
+      description:
+        'Choose a template that matches your product and offer flow.',
+      tone: 'info',
+      image:
+        'https://images.unsplash.com/photo-1558655146-d09347e92766?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      id: '02',
+      title: 'Customize',
+      description: 'Adjust sections, style, content, and discount settings.',
+      tone: 'warning',
+      image:
+        'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      id: '03',
+      title: 'Publish',
+      description: 'Enable the embed and make your combo page live.',
+      tone: 'success',
+      image:
+        'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      id: '04',
+      title: 'Track Performance',
+      description: 'Monitor visitors, clicks, and conversion impact.',
+      tone: 'info',
+      image:
+        'https://images.unsplash.com/photo-1551281044-8f6d8b47d4d1?auto=format&fit=crop&w=900&q=80',
+    },
+    {
+      id: '05',
+      title: 'Optimize',
+      description: 'Refine design and offers to improve sales outcomes.',
+      tone: 'warning',
+      image:
+        'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=900&q=80',
+    },
+  ];
+
+  useEffect(() => {
+    const updateCardsPerView = () => {
+      if (window.innerWidth < 720) {
+        setCardsPerView(1);
+        return;
+      }
+      if (window.innerWidth < 1120) {
+        setCardsPerView(2);
+        return;
+      }
+      setCardsPerView(3);
+    };
+
+    updateCardsPerView();
+    window.addEventListener('resize', updateCardsPerView);
+
+    return () => window.removeEventListener('resize', updateCardsPerView);
+  }, []);
+
+  const maxStartIndex = Math.max(0, steps.length - cardsPerView);
+
+  useEffect(() => {
+    setStartIndex((prev) => Math.min(prev, maxStartIndex));
+  }, [maxStartIndex]);
+
+  const translateX = startIndex * (240 + 12);
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text variant="headingMd" as="h3">
+          Build It This Way
+        </Text>
+
+        <div className="dashboard-steps-grid">
+          <div className="dashboard-steps-carousel">
+            <button
+              type="button"
+              className="dashboard-arrow dashboard-arrow-left"
+              onClick={() => setStartIndex((prev) => Math.max(0, prev - 1))}
+              disabled={startIndex === 0}
+              aria-label="Previous cards"
+            >
+              ‹
+            </button>
+
+            <button
+              type="button"
+              className="dashboard-arrow dashboard-arrow-right"
+              onClick={() =>
+                setStartIndex((prev) => Math.min(maxStartIndex, prev + 1))
+              }
+              disabled={startIndex >= maxStartIndex}
+              aria-label="Next cards"
+            >
+              ›
+            </button>
+
+            <div
+              className="dashboard-steps-track"
+              style={{ transform: `translateX(-${translateX}px)` }}
+            >
+              {steps.map((step) => (
+                <div key={step.id} className="dashboard-step-card">
+                  <Card background="bg-surface-secondary">
+                    <BlockStack gap="200">
+                      <div
+                        style={{
+                          width: '100%',
+                          height: 96,
+                          borderRadius: 10,
+                          backgroundImage: `url("${step.image}")`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
+                      />
+                      <BlockStack gap="100">
+                        <Badge tone={step.tone}>{step.id}</Badge>
+                        <Text variant="headingSm" as="h4">
+                          {step.title}
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                          {step.description}
+                        </Text>
+                      </BlockStack>
+                    </BlockStack>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </BlockStack>
+    </Card>
+  );
+}
+
+function CTABanner() {
+  return (
+    <Card>
+      <div
+        style={{
+          background:
+            'linear-gradient(135deg, #0f172a 0%, #111827 55%, #052e2b 100%)',
+          borderRadius: 12,
+          padding: 20,
+        }}
+      >
+        <InlineStack align="space-between" blockAlign="center" wrap>
+          <BlockStack gap="100">
+            <Text variant="headingMd" as="h3" tone="text-inverse">
+              Ready to elevate your store?
+            </Text>
+            <Text variant="bodyMd" tone="text-inverse-secondary">
+              Launch your next combo page in minutes and optimize with
+              analytics.
+            </Text>
+          </BlockStack>
+
+          <Link
+            to="/app/customize"
+            prefetch="intent"
+            style={{ textDecoration: 'none' }}
+          >
+            <button
+              type="button"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#111111',
+                border: '1px solid #ffffff',
+                borderRadius: 8,
+                padding: '7px 14px',
+                fontSize: 15,
+                fontWeight: 600,
+                lineHeight: 1,
+                cursor: 'pointer',
+              }}
+            >
+              Customize Template
+            </button>
+          </Link>
+        </InlineStack>
+      </div>
+    </Card>
+  );
+}
 
 // Loader: check real Shopify theme embed status → save to DB → return result
 export const loader = async ({ request }) => {
@@ -196,7 +659,7 @@ export const loader = async ({ request }) => {
 
 // ... inside Dashboard component ...
 export default function Dashboard() {
-  const { shopName, isEnabled, analyticsData } = useLoaderData();
+  const { shopName, isEnabled } = useLoaderData();
   const toggleFetcher = useFetcher();
   const revalidator = useRevalidator();
   const [appStatus, setAppStatus] = useState(isEnabled);
@@ -230,160 +693,28 @@ export default function Dashboard() {
         </div>
       }
     >
-      <BlockStack gap="600">
-        {/* 1. How to Use Section */}
-        <Card>
-          <BlockStack gap="400">
-            <Text variant="headingLg" as="h2">
-              How to Use This App
-            </Text>
-            <Text variant="bodyMd" tone="subdued">
-              Follow these simple steps to create stunning combo pages for your
-              store
-            </Text>
-            <div
-              style={{
-                width: '100%',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              }}
-            >
-              <img
-                src="https://placehold.co/1200x250/000000/ffffff?text=Step+1:+Browse+Layouts+%E2%86%92+Step+2:+Select+%E2%86%92+Step+3:+Customize+%E2%86%92+Step+4:+Publish"
-                alt="How to use guide"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                }}
-              />
-            </div>
-          </BlockStack>
-        </Card>
-
-        {/* App Status Section */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="start">
-              <BlockStack gap="200">
-                <Text variant="headingLg" as="h2">
-                  {appStatus
-                    ? '✅ App Status: Active'
-                    : '🚀 Enable App in Your Theme'}
-                </Text>
-                <Text variant="bodyMd" tone="subdued">
-                  {appStatus
-                    ? 'The app is active and visible on your storefront.'
-                    : 'To display combo pages, you must enable the app in the Theme Editor.'}
-                </Text>
-              </BlockStack>
-              <Badge tone={appStatus ? 'success' : 'attention'}>
-                {appStatus ? 'Active' : 'Action Required'}
-              </Badge>
-            </InlineStack>
-
-            <Divider />
-
-            <BlockStack gap="300">
-              <Text variant="headingMd" as="h3">
-                {appStatus ? 'How to Disable:' : 'How to Enable:'}
-              </Text>
-              <List type="number">
-                <List.Item>
-                  Click the button below to open the Theme Editor.
-                </List.Item>
-                <List.Item>
-                  In "App Embeds", toggle "Make-a-combo"{' '}
-                  <strong>{appStatus ? 'OFF' : 'ON'}</strong>.
-                </List.Item>
-                <List.Item>Click "Save".</List.Item>
-              </List>
-            </BlockStack>
-
-            <InlineStack align="center" gap="400">
-              <Button
-                variant={appStatus ? 'secondary' : 'primary'}
-                tone={appStatus ? 'critical' : 'success'}
-                loading={isToggling}
-                disabled={isToggling}
-                onClick={handleStatusToggle}
-              >
-                {appStatus ? 'Disable in App' : 'Enable in App'}
-              </Button>
-              <EnableThemeButton
-                shopName={shopName}
-                onToggle={setAppStatus}
-                children={
-                  appStatus
-                    ? 'Disable App in Theme Editor'
-                    : 'Enable App in Theme Editor'
-                }
-              />
-            </InlineStack>
-
-            <Card background="bg-surface-secondary">
-              <BlockStack gap="200">
-                <Text variant="headingSm" as="h4">
-                  💡 Note
-                </Text>
-                <Text variant="bodyMd" tone="subdued">
-                  If you change the setting in the Theme Editor, please refresh
-                  this dashboard to see the updated status.
-                </Text>
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Card>
-
-        {/* Plan Status Section */}
-        <Card>
-          <InlineStack align="space-between" blockAlign="center">
-            <BlockStack gap="100">
-              <Text variant="headingMd" as="h2">
-                Current Plan: <Badge tone="info">Starter (Free)</Badge>
-              </Text>
-              <Text variant="bodyMd" tone="subdued">
-                You are currently on the Starter plan. Upgrade to Professional
-                to unlock unlimited combo pages and premium templates.
-              </Text>
-            </BlockStack>
-            <Link
-              to="/app/plan"
-              prefetch="intent"
-              style={{ textDecoration: 'none' }}
-            >
-              <Button variant="primary">Upgrade Plan</Button>
-            </Link>
-          </InlineStack>
-        </Card>
-
-        {/* 2. Quick Action — Go to Customize */}
-        <Card>
-          <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <BlockStack gap="100">
-              <Text variant="headingMd" as="h3">
-                Ready to build your combo page?
-              </Text>
-              <Text variant="bodyMd" tone="subdued">
-                Head to the Customize module to choose a layout and start
-                personalising your bundle experience.
-              </Text>
-            </BlockStack>
-            <Link
-              to="/app/customize"
-              prefetch="intent"
-              style={{ textDecoration: 'none' }}
-            >
-              <Button variant="primary" size="large">
-                Customize Template
-              </Button>
-            </Link>
-          </InlineStack>
-        </Card>
-
-        {/* <ShopifyAnalytics initialData={analyticsData} /> */}
-      </BlockStack>
+      <DashboardLayout
+        left={
+          <VideoCard
+            title="Build with Video Guide"
+            subtitle="Follow a quick walkthrough to launch your combo setup"
+            helperText="Watch the setup flow: select layout, customize content, and publish in minutes."
+          />
+        }
+        rightTop={
+          <StatusCard
+            key="status"
+            appStatus={appStatus}
+            isToggling={isToggling}
+            onToggleClick={handleStatusToggle}
+            shopName={shopName}
+            onThemeToggle={setAppStatus}
+          />
+        }
+        rightBottom={<PlanCard key="plan" />}
+        steps={<StepsSection />}
+        cta={<CTABanner />}
+      />
     </Page>
   );
 }
