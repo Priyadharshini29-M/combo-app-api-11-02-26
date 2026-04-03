@@ -434,6 +434,129 @@ function filterProductsByStock(products, cfg) {
   return list.filter(isProductInStock);
 }
 
+function collectConfiguredHandles(cfg) {
+  const handles = new Set();
+  for (let i = 1; i <= 20; i++) {
+    const stepHandle = String(cfg?.[`step_${i}_collection`] || '').trim();
+    if (stepHandle) handles.add(stepHandle);
+
+    const colHandle = String(cfg?.[`col_${i}`] || '').trim();
+    if (colHandle) handles.add(colHandle);
+  }
+
+  const defaultHandle = String(cfg?.collection_handle || '').trim();
+  if (defaultHandle) handles.add(defaultHandle);
+
+  return handles;
+}
+
+async function fetchCollectionProductsPaginated(handle) {
+  const all = [];
+  const normalizedHandle = String(handle || '').trim();
+  if (!normalizedHandle) return all;
+
+  const limit = 250;
+  let page = 1;
+  const maxPages = 40;
+
+  // Paginate collection products so large collections are fully loaded.
+  while (page <= maxPages) {
+    const res = await fetch(
+      `/collections/${encodeURIComponent(normalizedHandle)}/products.json?limit=${limit}&page=${page}`
+    );
+    if (!res.ok) break;
+
+    const data = await res.json();
+    const products = Array.isArray(data?.products) ? data.products : [];
+    if (!products.length) break;
+
+    all.push(...products);
+    if (products.length < limit) break;
+    page += 1;
+  }
+
+  return all;
+}
+
+function mapStorefrontProduct(rawProduct, collectionHandle, step, stepLimit) {
+  return {
+    id: `gid://shopify/Product/${rawProduct.id}`,
+    title: rawProduct.title,
+    handle: rawProduct.handle,
+    price: rawProduct.variants?.[0]?.price || '0.00',
+    image: rawProduct.images?.[0]?.src || '',
+    available: rawProduct.available,
+    inventory_quantity: (rawProduct.variants || []).reduce(
+      (sum, variant) => sum + (parseInt(variant.inventory_quantity, 10) || 0),
+      0
+    ),
+    collection_handle: collectionHandle,
+    ...(Number.isInteger(step) ? { step } : {}),
+    ...(stepLimit != null ? { step_limit: stepLimit } : {}),
+    variants: (rawProduct.variants || []).map((variant) => ({
+      id: `gid://shopify/ProductVariant/${variant.id}`,
+      title: variant.title,
+      price: variant.price,
+      available: variant.available,
+      inventory_quantity: variant.inventory_quantity,
+      image: variant.featured_image?.src || null,
+    })),
+  };
+}
+
+async function buildLiveCollectionProducts(cfg, layout) {
+  const handles = collectConfiguredHandles(cfg);
+  if (!handles.size) return [];
+
+  if (layout === 'layout1') {
+    const hasStepCollections = Array.from({ length: 20 }, (_, idx) => {
+      const step = idx + 1;
+      return String(cfg?.[`step_${step}_collection`] || '').trim();
+    }).some(Boolean);
+
+    if (!hasStepCollections) {
+      const allProducts = [];
+      for (const handle of handles) {
+        const products = await fetchCollectionProductsPaginated(handle);
+        allProducts.push(
+          ...products.map((p) => mapStorefrontProduct(p, handle))
+        );
+      }
+      return allProducts;
+    }
+
+    const allProducts = [];
+    for (let i = 1; i <= 20; i++) {
+      const stepHandle = String(cfg?.[`step_${i}_collection`] || '').trim();
+      if (!stepHandle) continue;
+
+      const stepProducts = await fetchCollectionProductsPaginated(stepHandle);
+      const stepLimitRaw = cfg?.[`step_${i}_limit`];
+      const stepLimit =
+        stepLimitRaw === undefined ||
+        stepLimitRaw === null ||
+        stepLimitRaw === ''
+          ? null
+          : stepLimitRaw;
+
+      allProducts.push(
+        ...stepProducts.map((p) =>
+          mapStorefrontProduct(p, stepHandle, i, stepLimit)
+        )
+      );
+    }
+    return allProducts;
+  }
+
+  const allProducts = [];
+  for (const handle of handles) {
+    const products = await fetchCollectionProductsPaginated(handle);
+    allProducts.push(...products.map((p) => mapStorefrontProduct(p, handle)));
+  }
+
+  return allProducts;
+}
+
 function getProductImageRatio(cfg) {
   const ratio = (cfg && cfg.product_image_ratio) || 'square';
   if (ratio === 'portrait')
@@ -1092,9 +1215,9 @@ function getPreviewBarHtml(cfg) {
       </div>
       <div style="${rightColStyle}">
         ${motivHtml}
-        <div style="display:flex;flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap;${isMobile ? 'justify-content:center;' : isTablet ? 'justify-content:flex-start;' : 'justify-content:flex-end;'}">
-          <span id="cdo-original-total" style="font-size:${cfg.original_price_size || 14}px;color:${cfg.preview_original_price_color || '#999'};text-decoration:line-through;display:none;"></span>
-          <span id="cdo-discounted-total" style="font-size:${cfg.discounted_price_size || 18}px;font-weight:800;color:${cfg.preview_discount_price_color || '#000'};"></span>
+        <div style="${priceStyle}">
+          <span id="cdo-original-total" style="font-size:${cfg.original_price_size || 13}px;color:${cfg.preview_original_price_color || '#999'};text-decoration:line-through;display:none;"></span>
+          <span id="cdo-discounted-total" style="font-size:${cfg.discounted_price_size || 18}px;font-weight:800;color:${cfg.preview_discount_price_color || '#000'};">Rs.0.00</span>
         </div>
         <div style="${buttonsStyle}">
           ${resetBtnHtml}
@@ -1293,7 +1416,6 @@ function bindLayout1Logic(cfg, products) {
   const selected = {};
   const maxTotal = parseInt(cfg.max_products) || 5;
   const discountPc = parseFloat(cfg.discount_percentage) || 0;
-  let discountApplied = false;
   const limitMsg = (
     cfg.limit_reached_message ||
     'Limit reached! You can only select __LIMIT__ items.'
@@ -1381,13 +1503,6 @@ function bindLayout1Logic(cfg, products) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
-    if (totalQty >= maxTotal && cfg.discount_code && !discountApplied) {
-      discountApplied = true;
-      fetch(rootUrl + 'discount/' + encodeURIComponent(cfg.discount_code)).catch(() => {});
-    } else if (totalQty < maxTotal) {
-      discountApplied = false;
-    }
-
     if (totalQty >= maxTotal && discountPc > 0) {
       disc = total * (1 - discountPc / 100);
       if (origEl) {
@@ -1413,13 +1528,7 @@ function bindLayout1Logic(cfg, products) {
         ).replace(/\{\{remaining\}\}|__REMAINING__/g, rem);
       }
     }
-    if (discEl) {
-      if (totalQty > 0) {
-        discEl.textContent = formatMoney(disc * 100);
-      } else {
-        discEl.textContent = '';
-      }
-    }
+    if (discEl) discEl.textContent = formatMoney(disc * 100);
 
     // Progress bar
     const pct = Math.min(100, Math.round((totalQty / maxTotal) * 100));
@@ -1905,14 +2014,26 @@ function bindLayout1Logic(cfg, products) {
 
 // Live-fetch products from Shopify storefront collection API
 async function fetchStorefrontProducts(collectionHandle, signal) {
-  const res = await fetch(
-    `/collections/${collectionHandle}/products.json?limit=50`,
-    { signal }
-  );
-  if (!res.ok) throw new Error(`Collection API error: ${res.status}`);
+  const allProducts = [];
+  const limit = 250;
+  const maxPages = 40;
 
-  const data = await res.json();
-  return (data.products || []).map((p) => ({
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await fetch(
+      `/collections/${collectionHandle}/products.json?limit=${limit}&page=${page}`,
+      { signal }
+    );
+    if (!res.ok) throw new Error(`Collection API error: ${res.status}`);
+
+    const data = await res.json();
+    const products = Array.isArray(data?.products) ? data.products : [];
+    if (!products.length) break;
+
+    allProducts.push(...products);
+    if (products.length < limit) break;
+  }
+
+  return allProducts.map((p) => ({
     id: `gid://shopify/Product/${p.id}`,
     title: p.title,
     handle: p.handle,
@@ -2413,7 +2534,6 @@ function bindStandardLogic({ cfg, products }) {
   const selected = window.__cdoSelected;
   const maxSel = parseInt(cfg.max_products) || 5;
   const discountPc = parseFloat(cfg.discount_percentage) || 0;
-  let discountApplied = false;
   const limitMsg = (cfg.limit_reached_message || 'Limit reached!').replace(
     /\{\{limit\}\}|__LIMIT__/g,
     maxSel
@@ -2529,13 +2649,6 @@ function bindStandardLogic({ cfg, products }) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
-    if (totalQty >= maxSel && cfg.discount_code && !discountApplied) {
-      discountApplied = true;
-      fetch(rootUrl + 'discount/' + encodeURIComponent(cfg.discount_code)).catch(() => {});
-    } else if (totalQty < maxSel) {
-      discountApplied = false;
-    }
-
     if (totalQty >= maxSel && discountPc > 0) {
       disc = total * (1 - discountPc / 100);
       if (origEl) {
@@ -2563,13 +2676,7 @@ function bindStandardLogic({ cfg, products }) {
         motivEl.style.display = 'none';
       }
     }
-    if (discEl) {
-      if (totalQty > 0) {
-        discEl.textContent = formatMoney(Math.round(disc * 100));
-      } else {
-        discEl.textContent = '';
-      }
-    }
+    if (discEl) discEl.textContent = formatMoney(Math.round(disc * 100));
 
     // Progress bar
     const pct = Math.min(100, Math.round((totalQty / maxSel) * 100));
@@ -3113,10 +3220,25 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
 
       const cfg = template.config || {};
-      cfg.discount_code = cfg.discount_code || template.discount_code || '';
       applySliderConfigCss(cfg);
       const layout = cfg.layout || 'layout1';
-      const products = filterProductsByStock(template.product_list || [], cfg);
+      let products = Array.isArray(template.product_list)
+        ? template.product_list
+        : [];
+
+      try {
+        const liveProducts = await buildLiveCollectionProducts(cfg, layout);
+        if (liveProducts.length) {
+          products = liveProducts;
+        }
+      } catch (productFetchError) {
+        console.warn(
+          '[Combo Extended] Failed to fetch live collection products, using template product list fallback.',
+          productFetchError
+        );
+      }
+
+      products = filterProductsByStock(products, cfg);
 
       trackVisit(template.name || slug); // â† ADD THIS
 

@@ -213,7 +213,10 @@
                                         if (prodRes.ok) {
                                             const prodData = await prodRes.json();
                                             if (prodData.products && prodData.products.length > 0) {
-                                                state.collectionProducts[handle] = prodData.products;
+                                                state.collectionProducts[handle] = prodData.products.map((p) => ({
+                                                    ...p,
+                                                    __collectionHandle: handle,
+                                                }));
                                                 prodData.products.forEach(p => {
                                                     if (!processedProducts.has("" + p.id)) {
                                                         const mapped = {
@@ -618,11 +621,13 @@
                     }
 
                     productsToRender.slice(0, 20).forEach(product => {
-                        const instances = state.selectedProducts.filter(p => String(p.id) === String(product.id));
+                        const selectedVariantId = String(state.selectedVariantByProduct[String(product.id)] || '').trim();
+                        const instances = selectedVariantId
+                            ? state.selectedProducts.filter((p) => String(p.variantId) === selectedVariantId)
+                            : state.selectedProducts.filter((p) => String(p.id) === String(product.id));
                         const qty = instances.length;
                         const isSelected = qty > 0;
                         const variants = Array.isArray(product.variants) ? product.variants : [];
-                        const selectedVariantId = String(state.selectedVariantByProduct[String(product.id)] || '').trim();
                         const selectedVariant = variants.find(v => String(v.id) === selectedVariantId) || variants[0] || null;
                         const price = selectedVariant?.price || "0.00";
                         const vendor = cfg.vendor || "Brand";

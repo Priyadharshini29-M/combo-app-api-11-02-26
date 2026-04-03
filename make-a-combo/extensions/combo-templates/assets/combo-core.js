@@ -470,6 +470,28 @@ document.addEventListener('DOMContentLoaded', async function () {
       const layout = cfg.layout || 'layout1';
       let products = [];
       try {
+        const fetchCollectionProductsPaginated = async (handle) => {
+          const all = [];
+          const limit = 250;
+          const maxPages = 40;
+
+          for (let page = 1; page <= maxPages; page++) {
+            const res = await fetch(
+              `/collections/${handle}/products.json?limit=${limit}&page=${page}`
+            );
+            if (!res.ok) break;
+
+            const data = await res.json();
+            const batch = Array.isArray(data?.products) ? data.products : [];
+            if (!batch.length) break;
+
+            all.push(...batch);
+            if (batch.length < limit) break;
+          }
+
+          return all;
+        };
+
         const collectionHandles = new Set();
         // Exhaustive collection handle discovery
         for (let i = 1; i <= 20; i++) {
@@ -485,9 +507,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             const allCollRes = await fetch('/collections.json');
             if (allCollRes.ok) {
               const allCollData = await allCollRes.json();
-              (allCollData.collections || [])
-                .slice(0, 5)
-                .forEach((c) => collectionHandles.add(c.handle));
+              (allCollData.collections || []).forEach((c) =>
+                collectionHandles.add(c.handle)
+              );
             }
           } catch (e) {
             console.warn('[Combo] Failed to auto-fetch collections:', e);
@@ -495,15 +517,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
 
         const fetchPromises = [...collectionHandles].map((handle) =>
-          fetch(`/collections/${handle}/products.json?limit=50`)
-            .then((r) => (r.ok ? r.json() : { products: [] }))
-            .catch(() => ({ products: [] }))
+          fetchCollectionProductsPaginated(handle).catch(() => [])
         );
 
         const results = await Promise.all(fetchPromises);
         const handleToProducts = new Map();
         [...collectionHandles].forEach((handle, idx) => {
-          handleToProducts.set(handle, results[idx]?.products || []);
+          handleToProducts.set(handle, results[idx] || []);
         });
 
         const allProducts = [];

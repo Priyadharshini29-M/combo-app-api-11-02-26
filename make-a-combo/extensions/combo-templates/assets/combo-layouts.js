@@ -609,13 +609,26 @@ function bindLayout1Logic(cfg, products) {
 
 /* ===================== LAYOUT 2 — Switching Tabs ===================== */
 async function fetchStorefrontProducts(collectionHandle, signal) {
-  const res = await fetch(
-    `/collections/${collectionHandle}/products.json?limit=50`,
-    { signal }
-  );
-  if (!res.ok) throw new Error(`Collection API error: ${res.status}`);
-  const data = await res.json();
-  return (data.products || []).map((p) => ({
+  const allProducts = [];
+  const limit = 250;
+  const maxPages = 40;
+
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await fetch(
+      `/collections/${collectionHandle}/products.json?limit=${limit}&page=${page}`,
+      { signal }
+    );
+    if (!res.ok) throw new Error(`Collection API error: ${res.status}`);
+
+    const data = await res.json();
+    const products = Array.isArray(data?.products) ? data.products : [];
+    if (!products.length) break;
+
+    allProducts.push(...products);
+    if (products.length < limit) break;
+  }
+
+  return allProducts.map((p) => ({
     id: `gid://shopify/Product/${p.id}`,
     title: p.title,
     handle: p.handle,
