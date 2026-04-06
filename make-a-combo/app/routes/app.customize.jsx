@@ -990,7 +990,8 @@ const DEFAULT_COMBO_CONFIG = {
   preview_height: 70,
   bg_color: '#ffffff',
   text_color: '#1a1a1a',
-  discount_percentage: 20,
+  discount_percentage: 10,
+  ai_mode: false,
   preview_font_size: 16,
   preview_font_weight: 600,
   preview_align_items: 'center',
@@ -1431,6 +1432,7 @@ export default function Customize() {
   const [generatingTitle, setGeneratingTitle] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [stepFieldAiLoading, setStepFieldAiLoading] = useState({});
+  const [collectionAiLoading, setCollectionAiLoading] = useState({});
   const [aiSuggestionNonce, setAiSuggestionNonce] = useState(0);
 
   // Collapsible sections state
@@ -1966,6 +1968,59 @@ export default function Customize() {
       }
     },
     [aiSuggestionNonce, collections, config, saveTitle, shopify, updateConfig]
+  );
+
+  const suggestNextCollection = useCallback(
+    async (step) => {
+      setCollectionAiLoading((prev) => ({ ...prev, [step]: true }));
+      try {
+        const numSteps = Number(config.num_steps) || 3;
+        const selectedHandles = Array.from({ length: numSteps }, (_, i) => i + 1)
+          .filter((s) => s !== step)
+          .map((s) => config[`step_${s}_collection`])
+          .filter(Boolean);
+
+        const res = await fetch('/api/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: 'collection_suggest',
+            availableCollections: (collections || []).map((c) => ({
+              handle: c.handle,
+              title: c.title,
+            })),
+            selectedHandles,
+            templateTitle: saveTitle,
+            layout: config.layout,
+          }),
+        });
+
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          throw new Error(
+            payload?.error || 'Unable to suggest a collection right now.'
+          );
+        }
+
+        const suggestedHandle = payload?.data?.handle;
+        const suggestedTitle = payload?.data?.title;
+        if (!suggestedHandle) {
+          throw new Error('AI did not return a collection suggestion.');
+        }
+
+        updateConfig(`step_${step}_collection`, suggestedHandle);
+        shopify.toast.show(
+          `AI suggested "${suggestedTitle || suggestedHandle}" for step ${step}.`
+        );
+      } catch (error) {
+        shopify.toast.show(error.message || 'AI suggestion failed.', {
+          isError: true,
+        });
+      } finally {
+        setCollectionAiLoading((prev) => ({ ...prev, [step]: false }));
+      }
+    },
+    [collections, config, saveTitle, shopify, updateConfig]
   );
 
   const getStyleKey = useCallback(
@@ -3824,6 +3879,22 @@ export default function Customize() {
                       </FormLayout>
                     </CollapsibleCard>
                   )}
+                {/* AI Mode */}
+                <CollapsibleCard
+                  title="AI Settings"
+                  expanded={expandedSections.banner}
+                  onToggle={() => toggleSection('banner')}
+                >
+                  <FormLayout>
+                    <Checkbox
+                      label="Enable AI Suggestions for Customers"
+                      checked={!!config.ai_mode}
+                      onChange={(v) => updateConfig('ai_mode', v)}
+                      helpText="When enabled, AI will suggest products and collections to customers on the storefront"
+                    />
+                  </FormLayout>
+                </CollapsibleCard>
+
                 {/* Banner Settings */}
                 <CollapsibleCard
                   title="Banner Settings"

@@ -393,19 +393,44 @@ function trackVisit(templateName) {
   }
   const payload = {
     template_name: templateName,
-    template_id: '123', // Replace with actual template ID if available
+    template_id: window.comboTemplateId || '123',
     shop_domain:
       window.Shopify && window.Shopify.shop
         ? window.Shopify.shop
         : 'unknown.myshopify.com',
     page_url: window.location.href,
     visitor_id: userId,
+    discount_code: window.__cdoDiscountCode || null,
   };
   fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify(payload),
+  });
+}
+
+function trackCheckout(templateName) {
+  if (!templateName) return;
+  let userId = sessionStorage.getItem('cdo_uid');
+  if (!userId) {
+    userId = 'visitor-' + Math.random().toString(36).substr(2, 9);
+    sessionStorage.setItem('cdo_uid', userId);
+  }
+  const payload = {
+    template_name: templateName,
+    template_id: '123',
+    shop_domain: window.Shopify && window.Shopify.shop ? window.Shopify.shop : 'unknown.myshopify.com',
+    page_url: window.location.href,
+    visitor_id: userId,
+    action: 'checkout',
+    type: 'checkout',
+    discount_code: window.__cdoDiscountCode || null,
+  };
+  fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 }
@@ -1503,8 +1528,16 @@ function bindLayout1Logic(cfg, products) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
-    if (totalQty >= maxTotal && discountPc > 0) {
-      disc = total * (1 - discountPc / 100);
+    const discValueType = cfg._discount_value_type || 'percentage';
+    const discFixed = parseFloat(cfg._discount_fixed_value) || 0;
+    const hasDiscount =
+      discValueType === 'fixed' ? discFixed > 0 : discountPc > 0;
+
+    if (totalQty >= maxTotal && hasDiscount) {
+      disc =
+        discValueType === 'fixed'
+          ? Math.max(0, total - discFixed)
+          : total * (1 - discountPc / 100);
       if (origEl) {
         origEl.style.display = 'inline';
         origEl.textContent = formatMoney(total * 100);
@@ -1739,6 +1772,7 @@ function bindLayout1Logic(cfg, products) {
         };
       else selected[key].qty++;
       updateCardVisuals(pendingCard, id);
+      if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
       if (overlay) overlay.style.display = 'none';
       pendingCard = null;
     });
@@ -1789,6 +1823,7 @@ function bindLayout1Logic(cfg, products) {
           };
         else selected[key].qty++;
         updateCardVisuals(card, id);
+        if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
         return;
       }
 
@@ -1824,6 +1859,7 @@ function bindLayout1Logic(cfg, products) {
           };
         else selected[variantId].qty++;
         updateCardVisuals(card, id);
+        if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
         return;
       }
 
@@ -1842,6 +1878,7 @@ function bindLayout1Logic(cfg, products) {
         };
       else selected[variantId].qty++;
       updateCardVisuals(card, id);
+      if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
     };
     const onDec = () => {
       // Find by product id directly, or by cardId (for variant selections)
@@ -1966,27 +2003,43 @@ function bindLayout1Logic(cfg, products) {
               : 'unknown.myshopify.com',
           page_url: window.location.href,
           visitor_id: userId,
+          action: 'checkout',
+          type: 'checkout',
+          discount_code: window.__cdoDiscountCode || null,
         };
+        const checkoutItems = items.map((item) => `${item.id}:${item.quantity}`).join(',');
+        const discountCode = window.__cdoDiscountCode || null;
+        const checkoutUrl = rootUrl + 'cart/' + checkoutItems + '?checkout' +
+          (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '');
+        // Fire-and-forget tracking (do NOT await)
         fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-        }).finally(() => {
-          const checkoutItems = items
-            .map((item) => `${item.id}:${item.quantity}`)
-            .join(',');
-          window.location.assign(
-            rootUrl + 'cart/' + checkoutItems + '?checkout'
-          );
-        });
+          keepalive: true,
+        }).catch(function () {});
+        // Fire-and-forget: mark cart as combo-sourced (do NOT await — must not block checkout)
+        fetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: {
+              combo_source: 'combo-builder',
+              combo_template: window.comboTemplateName || 'combo',
+            },
+          }),
+          keepalive: true,
+        }).catch(function () {});
+        // Redirect immediately — no awaiting
+        window.location.assign(checkoutUrl);
       } catch (e) {
         // Never block checkout
-        const checkoutItems = items
-          .map((item) => `${item.id}:${item.quantity}`)
-          .join(',');
-        window.location.assign(rootUrl + 'cart/' + checkoutItems + '?checkout');
+        const checkoutItems = items.map((item) => `${item.id}:${item.quantity}`).join(',');
+        const discountCode = window.__cdoDiscountCode || null;
+        window.location.assign(
+          rootUrl + 'cart/' + checkoutItems + '?checkout' +
+          (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '')
+        );
       }
       // --- END TRACKING ---
     });
@@ -2649,8 +2702,16 @@ function bindStandardLogic({ cfg, products }) {
     const discEl = document.getElementById('cdo-discounted-total');
     const motivEl = document.getElementById('cdo-motiv');
 
-    if (totalQty >= maxSel && discountPc > 0) {
-      disc = total * (1 - discountPc / 100);
+    const discValueType = cfg._discount_value_type || 'percentage';
+    const discFixed = parseFloat(cfg._discount_fixed_value) || 0;
+    const hasDiscount =
+      discValueType === 'fixed' ? discFixed > 0 : discountPc > 0;
+
+    if (totalQty >= maxSel && hasDiscount) {
+      disc =
+        discValueType === 'fixed'
+          ? Math.max(0, total - discFixed)
+          : total * (1 - discountPc / 100);
       if (origEl) {
         origEl.style.display = 'inline';
         origEl.textContent = formatMoney(total * 100);
@@ -2835,6 +2896,7 @@ function bindStandardLogic({ cfg, products }) {
           };
         else selected[key].qty++;
         updateCard();
+        if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
         return;
       }
 
@@ -2890,6 +2952,7 @@ function bindStandardLogic({ cfg, products }) {
         };
       else selected[variantId].qty++;
       updateCard();
+      if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
     };
     const onDec = () => {
       let key = null;
@@ -3022,6 +3085,7 @@ function bindStandardLogic({ cfg, products }) {
       const overlay = document.getElementById('cdo-variant-overlay');
       if (overlay) overlay.style.display = 'none';
       window.__cdoPendingCard = null;
+      if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(cardId);
     });
   }
 
@@ -3102,6 +3166,9 @@ function bindStandardLogic({ cfg, products }) {
           page_url: pageUrl,
           shop_domain: shopDomain,
           visitor_id: visitorId,
+          action: 'checkout',
+          type: 'checkout',
+          discount_code: window.__cdoDiscountCode || null,
           // timestamp handled by backend
         };
         var url =
@@ -3122,15 +3189,26 @@ function bindStandardLogic({ cfg, products }) {
         /* Never block checkout */
       }
       // --- END TRACKING ---
-      // Debug: log IDs being used
-      console.log(
-        'Checkout variant IDs:',
-        items.map((item) => item.id)
-      );
-      const checkoutItems = items
-        .map((item) => `${item.id}:${item.quantity}`)
-        .join(',');
-      window.location.assign(rootUrl + 'cart/' + checkoutItems + '?checkout');
+      const checkoutItems = items.map((item) => `${item.id}:${item.quantity}`).join(',');
+      const discountCode = window.__cdoDiscountCode || null;
+      const checkoutUrl = rootUrl + 'cart/' + checkoutItems + '?checkout' +
+        (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '');
+      // Fire-and-forget: mark cart as combo-sourced (do NOT await — must not block checkout)
+      try {
+        fetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: {
+              combo_source: 'combo-builder',
+              combo_template: window.comboTemplateName || templateName || 'combo',
+            },
+          }),
+          keepalive: true,
+        }).catch(function () {});
+      } catch (e) { /* never block checkout */ }
+      // Redirect immediately — no awaiting
+      window.location.assign(checkoutUrl);
     });
   }
 
@@ -3163,6 +3241,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     window.Shopify && window.Shopify.shop
       ? window.Shopify.shop
       : window.location.hostname;
+
   const root = document.getElementById('combo-builder-root');
 
   let slug = '';
@@ -3220,6 +3299,44 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
 
       const cfg = template.config || {};
+      window.__cdoDiscountCode = template.discount_code || null;
+
+      // Fetch real discount details from discount.php and override cfg pricing
+      if (template.discount_code) {
+        try {
+          const discRes = await fetch(
+            `https://darkblue-dotterel-303283.hostingersite.com/discount.php?shop=${encodeURIComponent(shopDomain)}&shopdomain=${encodeURIComponent(shopDomain)}`
+          );
+          const discData = await discRes.json();
+          const allDiscounts = discData.data || [];
+          const matched = allDiscounts.find(
+            (d) => d.code && d.code === template.discount_code
+          );
+          if (matched) {
+            const valueType =
+              matched.valueType ||
+              matched.value_type ||
+              (matched.settings && matched.settings.valueType) ||
+              'percentage';
+            const value = parseFloat(
+              matched.value ||
+              (matched.settings && matched.settings.value) ||
+              0
+            );
+            if (valueType === 'percentage') {
+              cfg.discount_percentage = value;
+              cfg._discount_value_type = 'percentage';
+            } else {
+              cfg._discount_fixed_value = value;
+              cfg._discount_value_type = 'fixed';
+              cfg.discount_percentage = 0;
+            }
+          }
+        } catch (e) {
+          // Silently fail — cfg.discount_percentage from admin is the fallback
+        }
+      }
+
       applySliderConfigCss(cfg);
       const layout = cfg.layout || 'layout1';
       let products = Array.isArray(template.product_list)
@@ -3239,6 +3356,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
 
       products = filterProductsByStock(products, cfg);
+      window.__cdoProducts = products; // store for AI recommendation
 
       trackVisit(template.name || slug); // â† ADD THIS
 
@@ -3277,6 +3395,9 @@ document.addEventListener('DOMContentLoaded', async function () {
 
       syncSliderArrowVisibility(root);
       setupSliderArrowObserver(root);
+
+      // Initialize recommendation popup (fetches via app proxy + reads cfg)
+      initRecommendationPopup(shopDomain, root, cfg);
     }
   } catch (err) {
     // Show error visibly for debugging (remove in production if desired)
@@ -3288,3 +3409,251 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
   }
 });
+
+/* ===================== RECOMMENDATION POPUP ===================== */
+async function initRecommendationPopup(shopDomain, root, cfg) {
+  if (!shopDomain) return;
+
+  try {
+    const aiModeOn =
+      cfg &&
+      (cfg.ai_mode === true ||
+        cfg.ai_mode === 'true' ||
+        cfg.enable_recommendation_popup === true ||
+        cfg.enable_recommendation_popup === 'true');
+
+    const appUrl = (root && root.dataset && root.dataset.appUrl) || '';
+    const useAI = aiModeOn && !!appUrl && appUrl !== 'DISABLED';
+
+    let rules = [];
+    let enabled = aiModeOn;
+
+    // Fetch from PHP via Shopify app proxy
+    try {
+      const res = await fetch(
+        `/apps/combo/recommendations.php?shop=${encodeURIComponent(shopDomain)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          enabled = data.enabled || aiModeOn;
+          rules = Array.isArray(data.rules) ? data.rules : [];
+        }
+      }
+    } catch (fetchErr) {
+      // PHP file not uploaded yet — fall through to cfg fallback
+    }
+
+    // Fallback: rules embedded in template config
+    if (!rules.length && cfg && Array.isArray(cfg.recommendation_rules)) {
+      rules = cfg.recommendation_rules;
+    }
+
+    // Need either AI mode (with appUrl) or static rules to proceed
+    if (!enabled && !useAI) return;
+    if (!useAI && !rules.length) return;
+
+    window.__cdoRecommendationRules = rules;
+
+    if (!document.getElementById('cdo-rec-popup-overlay')) {
+      document.body.insertAdjacentHTML('beforeend', `
+        <div id="cdo-rec-popup-overlay" style="display:none;" aria-hidden="true">
+          <div id="cdo-rec-popup-card" role="dialog" aria-modal="true" aria-labelledby="cdo-rec-popup-title">
+            <button id="cdo-rec-popup-close" type="button" class="cdo-rec-popup-close-btn" aria-label="Close">&times;</button>
+            <div id="cdo-rec-popup-body"></div>
+          </div>
+        </div>
+      `);
+    }
+
+    const maxProducts = parseInt(cfg.max_products) || 5;
+
+    window.onComboProductAdded = async function (cardId) {
+      // DOM-based selection detection — works for all layouts including layout1
+      let totalQty = 0;
+      const selectedHandles = new Set();
+      const selectedProducts = [];
+      const allProds = window.__cdoProducts || window.__cdoAllProducts || [];
+      document.querySelectorAll('.cdo-card').forEach((card) => {
+        const qtyVal = parseInt(card.querySelector('.cdo-qty-value')?.value || '0', 10);
+        if (qtyVal > 0) {
+          totalQty += qtyVal;
+          const handle = String(card.dataset.handle || '');
+          const cid = String(card.dataset.id || '');
+          if (handle) selectedHandles.add(handle);
+          const p = allProds.find(
+            (p) => String(p.handle || '') === handle ||
+                   String(p.id || '').replace('gid://shopify/Product/', '') === cid
+          );
+          selectedProducts.push(p
+            ? { id: String(p.id || '').replace('gid://shopify/Product/', ''), title: p.title, handle: p.handle }
+            : { id: cid, handle });
+        }
+      });
+
+      if (totalQty >= maxProducts) return;
+
+      if (useAI) {
+        const skipped = window.__cdoSkippedHandles || new Set();
+        const availableProducts = allProds
+          .filter((p) => !skipped.has(String(p.handle || '')) && !selectedHandles.has(String(p.handle || '')))
+          .map((p) => ({
+            id: String(p.id || '').replace('gid://shopify/Product/', ''),
+            title: p.title,
+            handle: p.handle,
+            image: p.image,
+          }));
+        if (!availableProducts.length) return;
+        try {
+          const res = await fetch(`${appUrl}/api/ai-recommend`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selectedProducts, availableProducts, maxProducts, currentCount: totalQty }),
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.success && data.recommended) {
+            showRecommendationPopup({
+              recommendedProductId: data.recommended.id,
+              recommendedProductHandle: data.recommended.handle,
+              recommendedProductTitle: data.recommended.title,
+              recommendedProductImage: data.recommended.image,
+              popupTitle: cfg.recommendation_popup_title || 'You might also like',
+              ctaText: cfg.recommendation_cta_text || 'Add to Combo',
+              dismissText: cfg.recommendation_dismiss_text || 'No thanks',
+            });
+          }
+        } catch (e) {}
+      } else {
+        const normalizedCardId = String(cardId || '').replace('gid://shopify/Product/', '');
+        const rule = (window.__cdoRecommendationRules || []).find((r) => {
+          const trigId = String(r.triggerProductId || '').replace('gid://shopify/Product/', '');
+          return trigId === normalizedCardId;
+        });
+        if (!rule) return;
+        showRecommendationPopup(rule);
+      }
+    };
+  } catch (e) {
+    // Silently fail — popup is optional
+  }
+}
+function showRecommendationPopup(rule) {
+  const overlay = document.getElementById('cdo-rec-popup-overlay');
+  if (!overlay) return;
+  const body = document.getElementById('cdo-rec-popup-body');
+  if (!body) return;
+
+  const allProds = window.__cdoProducts || window.__cdoAllProducts || [];
+  const recHandle = rule.recommendedProductHandle || '';
+  const recIdNorm = String(rule.recommendedProductId || '').replace('gid://shopify/Product/', '');
+  const productObj = allProds.find((p) => {
+    if (recHandle && String(p.handle || '') === recHandle) return true;
+    return String(p.id || '').replace('gid://shopify/Product/', '') === recIdNorm;
+  });
+  const variants = productObj && Array.isArray(productObj.variants) && productObj.variants.length > 1
+    ? productObj.variants : [];
+
+  let variantSelectorHtml = '';
+  if (variants.length > 0) {
+    const btns = variants.map((v, i) => {
+      const vId = String(v.id || '').replace('gid://shopify/ProductVariant/', '');
+      const vTitle = v.title === 'Default Title' ? (productObj.title || 'Default') : (v.title || 'Variant');
+      return `<button type="button" class="cdo-rec-variant-btn${i === 0 ? ' selected' : ''}" ` +
+             `data-variant-id="${escapeHtml(vId)}" data-price="${escapeHtml(String(v.price || '0'))}" ` +
+             `data-image="${escapeHtml(v.image || (productObj && productObj.image) || '')}">` +
+             `${escapeHtml(vTitle)}</button>`;
+    }).join('');
+    variantSelectorHtml = `<div class="cdo-rec-variant-selector" id="cdo-rec-variant-selector">${btns}</div>`;
+  }
+
+  const imgHtml = rule.recommendedProductImage
+    ? `<img src="${escapeHtml(rule.recommendedProductImage)}" alt="${escapeHtml(rule.recommendedProductTitle)}" class="cdo-rec-popup-img" loading="lazy">`
+    : '';
+
+  body.innerHTML = `
+    <p id="cdo-rec-popup-title" class="cdo-rec-popup-title">${escapeHtml(rule.popupTitle || 'You might also like')}</p>
+    ${imgHtml}
+    <p class="cdo-rec-popup-product-title">${escapeHtml(rule.recommendedProductTitle || '')}</p>
+    ${variantSelectorHtml}
+    <div class="cdo-rec-popup-actions">
+      <button type="button" class="cdo-rec-popup-cta" id="cdo-rec-popup-cta">${escapeHtml(rule.ctaText || 'Add to Combo')}</button>
+      <button type="button" class="cdo-rec-popup-dismiss" id="cdo-rec-popup-dismiss">${escapeHtml(rule.dismissText || 'No thanks')}</button>
+    </div>`;
+
+  let pickedVariantId = '';
+  let pickedPrice = '';
+  let pickedImage = '';
+  const selectorEl = document.getElementById('cdo-rec-variant-selector');
+  if (selectorEl) {
+    const varBtns = selectorEl.querySelectorAll('.cdo-rec-variant-btn');
+    const first = varBtns[0];
+    if (first) {
+      pickedVariantId = first.dataset.variantId || '';
+      pickedPrice = first.dataset.price || '';
+      pickedImage = first.dataset.image || '';
+    }
+    varBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        varBtns.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        pickedVariantId = btn.dataset.variantId || '';
+        pickedPrice = btn.dataset.price || '';
+        pickedImage = btn.dataset.image || '';
+      });
+    });
+  }
+
+  overlay.style.display = 'flex';
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('cdo-modal-open');
+
+  const skipHandle = () => {
+    if (!window.__cdoSkippedHandles) window.__cdoSkippedHandles = new Set();
+    if (recHandle) window.__cdoSkippedHandles.add(recHandle);
+  };
+
+  const ctaBtn = document.getElementById('cdo-rec-popup-cta');
+  if (ctaBtn) {
+    ctaBtn.onclick = () => {
+      closeRecommendationPopup();
+      let card = recIdNorm ? document.querySelector(`.cdo-card[data-id="${recIdNorm}"]`) : null;
+      if (!card && recHandle) card = document.querySelector(`.cdo-card[data-handle="${recHandle}"]`);
+      if (card) {
+        if (pickedVariantId) {
+          const popupAddBtn = document.getElementById('cdo-variant-add');
+          if (popupAddBtn) {
+            window.__cdoPendingCard = card;
+            popupAddBtn.dataset.variantId = pickedVariantId;
+            popupAddBtn.dataset.price = pickedPrice;
+            popupAddBtn.dataset.image = pickedImage || card.dataset.image || '';
+            popupAddBtn.click();
+          } else {
+            const addBtn = card.querySelector('.cdo-add-btn');
+            if (addBtn && !addBtn.disabled) addBtn.click();
+          }
+        } else {
+          const addBtn = card.querySelector('.cdo-add-btn');
+          if (addBtn && !addBtn.disabled) addBtn.click();
+        }
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+  }
+
+  const dismissBtn = document.getElementById('cdo-rec-popup-dismiss');
+  if (dismissBtn) dismissBtn.onclick = () => { skipHandle(); closeRecommendationPopup(); };
+
+  const closeBtn = document.getElementById('cdo-rec-popup-close');
+  if (closeBtn) closeBtn.onclick = () => { skipHandle(); closeRecommendationPopup(); };
+
+  overlay.onclick = (e) => { if (e.target === overlay) { skipHandle(); closeRecommendationPopup(); } };
+}
+function closeRecommendationPopup() {
+  const overlay = document.getElementById('cdo-rec-popup-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  document.body.classList.remove('cdo-modal-open');
+}

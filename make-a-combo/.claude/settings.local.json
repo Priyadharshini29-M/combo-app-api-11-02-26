@@ -10,7 +10,9 @@
       "Bash(\"C:/xampp/mysql/bin/mysql.exe\":*)",
       "Bash(powershell:*)",
       "Bash(find D:Digifycemake-a-combocombo-app-api-11-02-26make-a-combo -type d -name *routes*)",
-      "Bash(grep -n '\\\\$' \"D:\\\\Digifyce\\\\make-a-combo\\\\combo-app-api-11-02-26\\\\make-a-combo\\\\app\\\\routes\\\\app.discountengine.jsx\")"
+      "Bash(grep -n '\\\\$' \"D:\\\\Digifyce\\\\make-a-combo\\\\combo-app-api-11-02-26\\\\make-a-combo\\\\app\\\\routes\\\\app.discountengine.jsx\")",
+      "WebFetch(domain:darkblue-dotterel-303283.hostingersite.com)",
+      "Bash(node:*)"
     ]
   }
 }

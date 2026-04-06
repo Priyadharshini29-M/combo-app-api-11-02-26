@@ -19,7 +19,7 @@ export const loader = async ({ request }) => {
     .split('T')[0];
 
   const [analyticsData, shopifyDiscounts] = await Promise.all([
-    getAnalytics(shop, start, end).then(d => d || {
+    getAnalytics(shop, start, end, null, admin).then(d => d || {
       totalVisitors: 0,
       totalClicks: 0,
       checkoutClicks: 0,
@@ -28,6 +28,10 @@ export const loader = async ({ request }) => {
       topTemplate: 'None',
       byTemplate: [],
       chartData: [],
+      totalRevenue: 0,
+      totalOrders: 0,
+      aov: 0,
+      orderConversionRate: 0,
     }),
     getShopifyDiscounts(admin),
   ]);

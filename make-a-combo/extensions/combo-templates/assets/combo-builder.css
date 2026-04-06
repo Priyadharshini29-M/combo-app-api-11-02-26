@@ -1,3 +1,117 @@
+/* ── Recommendation Popup ── */
+#cdo-rec-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: cdo-rec-fadein 0.22s ease;
+}
+@keyframes cdo-rec-fadein { from { opacity: 0; } to { opacity: 1; } }
+#cdo-rec-popup-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+  padding: 32px 28px 24px;
+  max-width: 380px;
+  width: 100%;
+  position: relative;
+  text-align: center;
+  animation: cdo-rec-slidein 0.25s ease;
+}
+@keyframes cdo-rec-slidein { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.cdo-rec-popup-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+}
+.cdo-rec-popup-close-btn:hover { color: #111; }
+.cdo-rec-popup-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin: 0 0 12px;
+}
+.cdo-rec-popup-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  display: block;
+  background: #f8f8f8;
+}
+.cdo-rec-variant-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 0 0 18px;
+}
+.cdo-rec-variant-btn {
+  padding: 7px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cdo-rec-variant-btn.selected {
+  border-color: #111;
+  background: #f5f5f5;
+}
+.cdo-rec-popup-product-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 20px;
+  line-height: 1.35;
+}
+.cdo-rec-popup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cdo-rec-popup-cta {
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.18s;
+}
+.cdo-rec-popup-cta:hover { background: #333; }
+.cdo-rec-popup-dismiss {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px;
+  text-decoration: underline;
+}
+.cdo-rec-popup-dismiss:hover { color: #444; }
+/* ── End Recommendation Popup ── */
+
 .cdo-spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #333; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .cdo-toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px); background: #111; color: #fff; padding: 14px 28px; border-radius: 50px; z-index: 10000; opacity: 0; transition: all 0.4s; pointer-events: none; }

@@ -188,6 +188,9 @@ export default function App() {
           <Link to="/app/analytics" prefetch="intent">
             Analytics
           </Link>
+          <Link to="/app/recommendations" prefetch="intent">
+            Recommendations
+          </Link>
           <Link to="/app/plan" prefetch="intent">
             Subscription Plan
           </Link>

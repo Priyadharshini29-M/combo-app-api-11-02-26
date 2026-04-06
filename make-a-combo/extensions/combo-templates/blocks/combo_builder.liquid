@@ -8,7 +8,11 @@
 
 {{ 'combo-builder.css' | asset_url | stylesheet_tag }}
 
-<div id="combo-builder-root" style="display:none; min-height: 400px; position: relative; font-family: inherit;">
+<div
+  id="combo-builder-root"
+  data-shop="{{ shop.permanent_domain }}"
+  data-app-url="{{ shop.metafields.make_a_combo.app_url }}"
+  style="display:none; min-height: 400px; position: relative; font-family: inherit;">
   <div id="loading-combo" style="text-align: center; padding: 60px 20px;">
     <div class="cdo-spinner"></div>
     <p style="margin-top: 15px; color: #666; font-family: inherit;">Loading your combo builder...</p>

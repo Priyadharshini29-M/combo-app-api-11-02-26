@@ -173,7 +173,7 @@ export async function sendTemplateData(templateData, action = 'create') {
     data: templateData,
   };
 
-  return await sendToPhp(payload, 'make-a-combo/templatesdetails.php');
+  return await sendToPhp(payload, 'templates.php');
 }
 
 /* =========================
@@ -356,7 +356,8 @@ export async function getShopifyOrders(admin, start, end) {
       ? new Date(end.replace(' ', 'T') + 'Z').toISOString()
       : new Date().toISOString();
 
-    let query = `financial_status:paid`;
+    // Only count orders that came through the combo builder page
+    let query = `financial_status:paid AND tag:combo-builder`;
     if (startTime) query += ` AND created_at:>=${startTime}`;
     if (endTime) query += ` AND created_at:<=${endTime}`;
 
@@ -546,8 +547,11 @@ export async function getAnalytics(shop, start, end, dateRange, admin = null) {
       totalOrders,
       currencyCode,
       aov: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+      // Conversion rate = combo checkout clicks / combo page visitors (combo-attributed)
       orderConversionRate:
-        totalVisitors > 0 ? (totalOrders / totalVisitors) * 100 : 0,
+        totalVisitors > 0
+          ? (Number(phpData.total_checkouts || 0) / totalVisitors) * 100
+          : 0,
       topTemplate: topTemplate,
       byTemplate: byTemplate,
       chartData: chartData,

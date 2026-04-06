@@ -280,17 +280,119 @@ export const action = async ({ request }) => {
     );
   }
 
-  const allowedTargets = new Set(['title', 'description', 'both', 'steps']);
+  const allowedTargets = new Set(['title', 'description', 'both', 'steps', 'collection_suggest']);
   const target = String(body?.target || '').trim();
 
   if (!allowedTargets.has(target)) {
     return json(
       {
         success: false,
-        error: 'Invalid target. Expected title, description, both, or steps.',
+        error: 'Invalid target. Expected title, description, both, steps, or collection_suggest.',
       },
       { status: 400 }
     );
+  }
+
+  if (target === 'collection_suggest') {
+    const availableCollections = Array.isArray(body?.availableCollections)
+      ? body.availableCollections.filter((c) => c && c.handle && c.title)
+      : [];
+    const selectedHandles = Array.isArray(body?.selectedHandles)
+      ? body.selectedHandles.filter(Boolean)
+      : [];
+    const templateTitle = normalizeText(body?.templateTitle || '');
+    const layout = normalizeText(body?.layout || '');
+
+    if (availableCollections.length === 0) {
+      return json(
+        { success: false, error: 'No available collections provided.' },
+        { status: 400 }
+      );
+    }
+
+    const unselected = availableCollections.filter(
+      (c) => !selectedHandles.includes(c.handle)
+    );
+
+    if (unselected.length === 0) {
+      return json(
+        { success: false, error: 'All collections are already selected.' },
+        { status: 400 }
+      );
+    }
+
+    const selectedTitles = availableCollections
+      .filter((c) => selectedHandles.includes(c.handle))
+      .map((c) => c.title);
+
+    const collectionList = unselected
+      .map((c, i) => `${i + 1}. handle="${c.handle}" title="${c.title}"`)
+      .join('\n');
+
+    const collSysPrompt = [
+      'You are a Shopify merchandising expert helping build product combo/bundle templates.',
+      'You will be given a list of available collections and some already-selected collections.',
+      'Return ONLY strict JSON with a single key "handle" containing the handle string of the best next collection to add.',
+      'Choose the collection that best complements the already-selected ones based on typical product pairing and upsell logic.',
+      'If no collections are selected yet, choose the most versatile starting collection.',
+    ].join(' ');
+
+    const collUserPrompt = [
+      `Template title: ${templateTitle || '(untitled)'}`,
+      `Layout: ${layout || 'standard'}`,
+      `Already-selected collections: ${selectedTitles.length ? selectedTitles.join(', ') : '(none)'}`,
+      'Available collections to choose from:',
+      collectionList,
+      'Return ONLY: {"handle":"<chosen_handle>"}',
+    ].join('\n');
+
+    let collRes;
+    try {
+      collRes = await fetch(OPENAI_RESPONSES_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${openAiKey}`,
+        },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          temperature: 0.7,
+          max_output_tokens: 60,
+          input: [
+            { role: 'system', content: [{ type: 'input_text', text: collSysPrompt }] },
+            { role: 'user', content: [{ type: 'input_text', text: collUserPrompt }] },
+          ],
+        }),
+      });
+    } catch (error) {
+      return json({ success: false, error: 'Failed to reach AI provider' }, { status: 502 });
+    }
+
+    let collJson;
+    try { collJson = await collRes.json(); } catch {
+      return json({ success: false, error: 'AI provider returned a non-JSON response' }, { status: 502 });
+    }
+
+    if (!collRes.ok) {
+      return json(
+        { success: false, error: `AI provider request failed (${collRes.status})` },
+        { status: 502 }
+      );
+    }
+
+    const collRaw = extractResponseText(collJson);
+    const collParsed = parseJsonObject(collRaw);
+    const suggestedHandle = normalizeText(collParsed?.handle || '');
+
+    const matched = unselected.find((c) => c.handle === suggestedHandle);
+    if (!matched) {
+      return json(
+        { success: false, error: 'AI suggested an unrecognised collection handle.' },
+        { status: 502 }
+      );
+    }
+
+    return json({ success: true, data: { handle: matched.handle, title: matched.title } });
   }
 
   const stepItems = Array.isArray(body?.steps)

@@ -697,25 +697,35 @@ export const action = async ({ request }) => {
           products: productList, // Use 'products' key for templates.php
           product_list: productList, // Keep 'product_list' for DB consistency
           config: data.config,
-          active: data.active || false, // Use 'active' key for templates.php
-          is_active: data.active ? 1 : 0,
+          active: data.active !== false, // Default true unless explicitly set false
+          is_active: data.active !== false ? 1 : 0,
           discount_code: newTemplate.discount_code,
           discount_id: newTemplate.discount_id,
           page_url: newTemplate.page_url,
           page_id: newTemplate.page_id,
+          ai_mode: data.config?.ai_mode ? 1 : 0,
         },
       };
 
       console.log('[Templates API] 📤 Synchronizing data to PHP...');
 
       try {
-        const dbResult = await sendToPhp(
-          syncPayload,
-          'make-a-combo/templatesdetails.php'
-        );
+        const dbResult = await sendToPhp(syncPayload, 'templates.php');
         console.log('[Templates API] ✅ MySQL Save Result:', dbResult);
+        if (dbResult && dbResult.success === false) {
+          const phpError = dbResult.error || 'PHP backend rejected the template save';
+          console.error('[Templates API] ❌ PHP returned error:', phpError);
+          return json(
+            { success: false, error: `Save failed: ${phpError}` },
+            { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
       } catch (dbError) {
         console.error('[Templates API] ❌ MySQL save failed:', dbError.message);
+        return json(
+          { success: false, error: `Failed to save template: ${dbError.message}` },
+          { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
+        );
       }
     } else if (actionType === 'update') {
       /* ===== UPDATE ===== */
@@ -1072,21 +1082,28 @@ export const action = async ({ request }) => {
           discount_id: result.discount_id,
           page_url: result.page_url,
           page_id: result.page_id,
+          ai_mode: result.config?.ai_mode ? 1 : 0,
         },
       };
 
       console.log('[Templates API] 📤 Synchronizing update to PHP...');
 
       try {
-        const dbResult = await sendToPhp(
-          syncPayload,
-          'make-a-combo/templatesdetails.php'
-        );
+        const dbResult = await sendToPhp(syncPayload, 'templates.php');
         console.log('[Templates API] ✅ MySQL Update Result:', dbResult);
+        if (dbResult && dbResult.success === false) {
+          const phpError = dbResult.error || 'PHP backend rejected the template update';
+          console.error('[Templates API] ❌ PHP returned error:', phpError);
+          return json(
+            { success: false, error: `Update failed: ${phpError}` },
+            { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
       } catch (dbError) {
-        console.error(
-          '[Templates API] ❌ MySQL update failed:',
-          dbError.message
+        console.error('[Templates API] ❌ MySQL update failed:', dbError.message);
+        return json(
+          { success: false, error: `Failed to update template: ${dbError.message}` },
+          { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
         );
       }
     } else if (actionType === 'delete') {
@@ -1106,7 +1123,7 @@ export const action = async ({ request }) => {
             shop: shop, // Use domain
             id,
           },
-          'make-a-combo/templatesdetails.php'
+          'templates.php'
         );
         console.log('[Templates API] ✅ MySQL Delete Result:', dbResult);
       } catch (dbError) {
