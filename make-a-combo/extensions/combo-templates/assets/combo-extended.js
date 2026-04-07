@@ -3404,8 +3404,8 @@ async function initRecommendationPopup(shopDomain, root, cfg) {
         cfg.enable_recommendation_popup === true ||
         cfg.enable_recommendation_popup === 'true');
 
-    const appUrl = (root && root.dataset && root.dataset.appUrl) || '';
-    const useAI = aiModeOn && !!appUrl && appUrl !== 'DISABLED';
+    const appUrl = '/apps/combo';
+    const useAI = aiModeOn;
 
     let rules = [];
     let enabled = aiModeOn;
@@ -3487,7 +3487,7 @@ async function initRecommendationPopup(shopDomain, root, cfg) {
           }));
         if (!availableProducts.length) return;
         try {
-          const res = await fetch(`${appUrl}/api/ai-recommend`, {
+          const res = await fetch(`${appUrl}/ai-recommend.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ selectedProducts, availableProducts, maxProducts, currentCount: totalQty }),
