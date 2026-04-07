@@ -1440,7 +1440,7 @@ function renderLayout1(cfg, products, root) {
 function bindLayout1Logic(cfg, products) {
   const selected = {};
   const maxTotal = parseInt(cfg.max_products) || 5;
-  const discountPc = parseFloat(cfg.discount_percentage) || 0;
+  const discountPc = window.__cdoDiscountCode ? (parseFloat(cfg.discount_percentage) || 0) : 0;
   const limitMsg = (
     cfg.limit_reached_message ||
     'Limit reached! You can only select __LIMIT__ items.'
@@ -1529,9 +1529,9 @@ function bindLayout1Logic(cfg, products) {
     const motivEl = document.getElementById('cdo-motiv');
 
     const discValueType = cfg._discount_value_type || 'percentage';
-    const discFixed = parseFloat(cfg._discount_fixed_value) || 0;
+    const discFixed = window.__cdoDiscountCode ? (parseFloat(cfg._discount_fixed_value) || 0) : 0;
     const hasDiscount =
-      discValueType === 'fixed' ? discFixed > 0 : discountPc > 0;
+      !!window.__cdoDiscountCode && (discValueType === 'fixed' ? discFixed > 0 : discountPc > 0);
 
     if (totalQty >= maxTotal && hasDiscount) {
       disc =
@@ -1745,13 +1745,14 @@ function bindLayout1Logic(cfg, products) {
 
   if (varAddBtn) {
     varAddBtn.addEventListener('click', () => {
-      if (!pendingCard) return;
+      const card = pendingCard || window.__cdoPendingCard;
+      if (!card) return;
       const variantId = varAddBtn.dataset.variantId;
       const price = parseFloat(varAddBtn.dataset.price);
       const image = varAddBtn.dataset.image;
-      const id = pendingCard.dataset.id;
-      const step = pendingCard.dataset.step || '1';
-      const stepLimit = parseInt(pendingCard.dataset.steplimit) || null;
+      const id = card.dataset.id;
+      const step = card.dataset.step || '1';
+      const stepLimit = parseInt(card.dataset.steplimit) || null;
       if (getTotalQty() >= maxTotal) {
         showToast(limitMsg);
         return;
@@ -1771,10 +1772,11 @@ function bindLayout1Logic(cfg, products) {
           cardId: id,
         };
       else selected[key].qty++;
-      updateCardVisuals(pendingCard, id);
+      updateCardVisuals(card, id);
       if (typeof window.onComboProductAdded === 'function') window.onComboProductAdded(id);
       if (overlay) overlay.style.display = 'none';
       pendingCard = null;
+      window.__cdoPendingCard = null;
     });
   }
 
@@ -2577,7 +2579,7 @@ function bindStandardLogic({ cfg, products }) {
   // Use the global persistent selection state â€” NOT a new local object.
   const selected = window.__cdoSelected;
   const maxSel = parseInt(cfg.max_products) || 5;
-  const discountPc = parseFloat(cfg.discount_percentage) || 0;
+  const discountPc = window.__cdoDiscountCode ? (parseFloat(cfg.discount_percentage) || 0) : 0;
   const limitMsg = (cfg.limit_reached_message || 'Limit reached!').replace(
     /\{\{limit\}\}|__LIMIT__/g,
     maxSel
@@ -2694,9 +2696,9 @@ function bindStandardLogic({ cfg, products }) {
     const motivEl = document.getElementById('cdo-motiv');
 
     const discValueType = cfg._discount_value_type || 'percentage';
-    const discFixed = parseFloat(cfg._discount_fixed_value) || 0;
+    const discFixed = window.__cdoDiscountCode ? (parseFloat(cfg._discount_fixed_value) || 0) : 0;
     const hasDiscount =
-      discValueType === 'fixed' ? discFixed > 0 : discountPc > 0;
+      !!window.__cdoDiscountCode && (discValueType === 'fixed' ? discFixed > 0 : discountPc > 0);
 
     if (totalQty >= maxSel && hasDiscount) {
       disc =
@@ -3597,6 +3599,10 @@ function showRecommendationPopup(rule) {
   if (ctaBtn) {
     ctaBtn.onclick = () => {
       closeRecommendationPopup();
+      // Mark as skipped so it won't be recommended again
+      if (!window.__cdoSkippedHandles) window.__cdoSkippedHandles = new Set();
+      if (recHandle) window.__cdoSkippedHandles.add(recHandle);
+
       let card = recIdNorm ? document.querySelector(`.cdo-card[data-id="${recIdNorm}"]`) : null;
       if (!card && recHandle) card = document.querySelector(`.cdo-card[data-handle="${recHandle}"]`);
       if (card) {
