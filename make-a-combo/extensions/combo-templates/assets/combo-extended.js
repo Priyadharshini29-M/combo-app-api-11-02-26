@@ -2009,25 +2009,16 @@ function bindLayout1Logic(cfg, products) {
         };
         const checkoutItems = items.map((item) => `${item.id}:${item.quantity}`).join(',');
         const discountCode = window.__cdoDiscountCode || null;
+        const templateNameParam = encodeURIComponent(window.comboTemplateName || 'combo');
         const checkoutUrl = rootUrl + 'cart/' + checkoutItems + '?checkout' +
-          (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '');
+          (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '') +
+          '&note_attributes[combo_source]=combo-builder' +
+          '&note_attributes[combo_template]=' + templateNameParam;
         // Fire-and-forget tracking (do NOT await)
         fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          keepalive: true,
-        }).catch(function () {});
-        // Fire-and-forget: mark cart as combo-sourced (do NOT await — must not block checkout)
-        fetch('/cart/update.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attributes: {
-              combo_source: 'combo-builder',
-              combo_template: window.comboTemplateName || 'combo',
-            },
-          }),
           keepalive: true,
         }).catch(function () {});
         // Redirect immediately — no awaiting
@@ -3191,22 +3182,11 @@ function bindStandardLogic({ cfg, products }) {
       // --- END TRACKING ---
       const checkoutItems = items.map((item) => `${item.id}:${item.quantity}`).join(',');
       const discountCode = window.__cdoDiscountCode || null;
+      const templateNameParam = encodeURIComponent(window.comboTemplateName || templateName || 'combo');
       const checkoutUrl = rootUrl + 'cart/' + checkoutItems + '?checkout' +
-        (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '');
-      // Fire-and-forget: mark cart as combo-sourced (do NOT await — must not block checkout)
-      try {
-        fetch('/cart/update.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attributes: {
-              combo_source: 'combo-builder',
-              combo_template: window.comboTemplateName || templateName || 'combo',
-            },
-          }),
-          keepalive: true,
-        }).catch(function () {});
-      } catch (e) { /* never block checkout */ }
+        (discountCode ? '&discount=' + encodeURIComponent(discountCode) : '') +
+        '&note_attributes[combo_source]=combo-builder' +
+        '&note_attributes[combo_template]=' + templateNameParam;
       // Redirect immediately — no awaiting
       window.location.assign(checkoutUrl);
     });
