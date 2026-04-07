@@ -2381,7 +2381,10 @@ export default function Customize() {
     return (
       <Page
         title="Customize Template"
-        backAction={{ content: 'Dashboard', url: '/app/dashboard' }}
+        backAction={{
+          content: 'Template Modules',
+          onAction: () => navigate('/app/templates', { replace: true }),
+        }}
       >
         <div style={{ padding: '12px 0 24px' }}>
           <Text variant="headingLg" as="h2">
@@ -2578,17 +2581,10 @@ export default function Customize() {
   // ── Full customisation editor ────────────────────────────────────────────
   return (
     <Page
-      backAction={
-        !initialTemplate
-          ? {
-              content: 'Choose Template',
-              onAction: () => {
-                navigate('/app/customize', { replace: true });
-                setPickedLayout(null);
-              },
-            }
-          : { content: 'Dashboard', url: '/app/dashboard' }
-      }
+      backAction={{
+        content: 'Template Modules',
+        onAction: () => navigate('/app/templates', { replace: true }),
+      }}
       title="Customize Template"
       titleMetadata={
         <div className="template-status-meta">

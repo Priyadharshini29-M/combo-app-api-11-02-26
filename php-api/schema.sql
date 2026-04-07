@@ -1,7 +1,0 @@
-CREATE TABLE customization_settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    shop VARCHAR(255) NOT NULL,
-    settings JSON NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_shop (shop)
-);

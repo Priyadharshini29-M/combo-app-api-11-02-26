@@ -2,7 +2,7 @@
 
 client_id = "f5c2cbb3e511079397eeaa68d16259ae"
 name = "Make-a-combo"
-application_url = "https://9683-103-114-211-244.ngrok-free.app"
+application_url = "https://767c-103-114-211-244.ngrok-free.app"
 embedded = true
 
 [build]
@@ -29,9 +29,9 @@ scopes = "write_products,read_content,write_content,read_script_tags,write_scrip
 
 [auth]
 redirect_urls = [
-  "https://e01b-103-114-211-244.ngrok-free.app/auth/callback",
-  "https://e01b-103-114-211-244.ngrok-free.app/auth/shopify/callback",
-  "https://e01b-103-114-211-244.ngrok-free.app/api/auth/callback"
+  "https://767c-103-114-211-244.ngrok-free.app/auth/callback",
+  "https://767c-103-114-211-244.ngrok-free.app/auth/shopify/callback",
+  "https://767c-103-114-211-244.ngrok-free.app/api/auth/callback"
 ]
 
 [app_proxy]
