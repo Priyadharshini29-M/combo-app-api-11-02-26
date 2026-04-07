@@ -538,7 +538,7 @@ export const loader = async ({ request }) => {
         `#graphql
       query getProducts {
         products(first: 60) {
-          nodes { id title handle vendor totalInventory descriptionHtml images(first: 8) { nodes { url } } featuredMedia { preview { image { url } } } collections(first: 5) { nodes { handle } } variants(first: 10) { nodes { id title price compareAtPrice inventoryQuantity image { url } } } }
+          nodes { id title handle vendor availableForSale totalInventory descriptionHtml images(first: 8) { nodes { url } } featuredMedia { preview { image { url } } } collections(first: 5) { nodes { handle } } variants(first: 10) { nodes { id title price compareAtPrice availableForSale inventoryQuantity image { url } } } }
         }
       }`
       )
@@ -548,14 +548,29 @@ export const loader = async ({ request }) => {
         return { data: { products: { nodes: [] } } };
       });
 
-    const products = (productsRes.data?.products?.nodes || []).map((p) => ({
-      ...p,
-      available: Number(p.totalInventory || 0) > 0,
-      collections: p.collections?.nodes || [],
-      variants: p.variants?.nodes || [],
-      secondImageSrc:
-        p.images?.nodes?.length > 1 ? p.images.nodes[1].url : null,
-    }));
+    const products = (productsRes.data?.products?.nodes || []).map((p) => {
+      const variants = p.variants?.nodes || [];
+      const hasSellableVariant = variants.some(
+        (v) => v.availableForSale === true || Number(v.inventoryQuantity || 0) > 0
+      );
+
+      return {
+        ...p,
+        available:
+          p.availableForSale === true ||
+          Number(p.totalInventory || 0) > 0 ||
+          hasSellableVariant,
+        collections: p.collections?.nodes || [],
+        variants: variants.map((v) => ({
+          ...v,
+          available:
+            v.availableForSale === true ||
+            Number(v.inventoryQuantity || 0) > 0,
+        })),
+        secondImageSrc:
+          p.images?.nodes?.length > 1 ? p.images.nodes[1].url : null,
+      };
+    });
 
     const pagesRes = await admin
       .graphql(
@@ -1519,7 +1534,7 @@ export default function Customize() {
 
       const url =
         handle && handle !== ''
-          ? `/api/products?handle=${handle}`
+          ? `/api/products?handle=${encodeURIComponent(handle)}`
           : `/api/products`;
 
       console.log(
@@ -1693,7 +1708,9 @@ export default function Customize() {
     if (handles.length > 0 && productFetcher.state === 'idle') {
       handles.forEach((h) => fetchedHandlesRef.current.add(h));
       setStepProductsLoading(true);
-      productFetcher.load(`/api/products?handles=${handles.join(',')}`);
+      productFetcher.load(
+        `/api/products?handles=${encodeURIComponent(handles.join(','))}`
+      );
     }
   }, [config, productFetcher]);
 
