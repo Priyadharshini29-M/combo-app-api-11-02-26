@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { json } from '@remix-run/node';
-import { useLoaderData, useFetcher } from '@remix-run/react';
+import { useLoaderData, useFetcher, useNavigate } from '@remix-run/react';
 import {
   Page,
   Layout,
@@ -41,6 +41,7 @@ import {
   XIcon,
   PlayCircleIcon,
   PauseCircleIcon,
+  MenuHorizontalIcon,
 } from '@shopify/polaris-icons';
 import fs from 'fs';
 import path from 'path';
@@ -1134,6 +1135,7 @@ export default function DiscountEngine() {
   const shopify = useAppBridge();
   const { discounts: initialDiscounts, totalUsage: loaderTotalUsage } = useLoaderData();
   const fetcher = useFetcher();
+  const navigate = useNavigate();
   const [discounts, setDiscounts] = useState(initialDiscounts);
 
   // Custom Status Toggle UI Component
@@ -1675,6 +1677,43 @@ export default function DiscountEngine() {
       }))
     );
 
+  const [filterType, setFilterType] = useState('All Discounts');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
+
+  const handleExportCSV = () => {
+    const csvContent = [
+      ['Discount Name', 'Type', 'Usage', 'Status', 'Date'],
+      ...displayDiscounts.map(d => [
+        `"${d.title}"`,
+        `"${getTypeLabel(d.type)}"`,
+        `"${d.usage}"`,
+        `"${d.status}"`,
+        `"${d.created || ''}"`
+      ])
+    ].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "discounts.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    shopify.toast.show('Exported to CSV');
+  };
+
+  const filteredDiscounts = displayDiscounts.filter(d => {
+    if (filterType === 'Active') return d.status === 'active';
+    if (filterType === 'Inactive') return d.status === 'inactive';
+    return true;
+  });
+
+  const totalFilteredList = filteredDiscounts.length;
+  const totalPages = Math.ceil(totalFilteredList / itemsPerPage) || 1;
+  const paginatedDiscounts = filteredDiscounts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+
   const SelectDiscountTypeModal = () => (
     <Modal
       open={selectTypeModalOpen}
@@ -1883,243 +1922,360 @@ export default function DiscountEngine() {
       }
     >
       {!showCreateForm ? (
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '1200px', margin: '24px auto', fontFamily: 'inherit', color: '#111' }}>
+          
+          {/* Header */}
+          <div style={{ marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: '700', margin: '0 0 8px 0', color: '#000' }}>Discount Management</h1>
+            <p style={{ fontSize: '15px', color: '#555', margin: 0 }}>Configure and monitor your active promotional rules across Shopify.</p>
+          </div>
+
           {/* Stats Overview */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '20px',
-              marginBottom: '32px',
+              display: 'flex',
+              gap: '16px',
+              marginBottom: '24px',
+              flexWrap: 'wrap'
             }}
           >
-            <Card>
-              <BlockStack gap="200">
-                <Text variant="headingSm" as="h3" tone="subdued">
-                  ACTIVE DISCOUNTS
-                </Text>
-                <Text variant="headingLg" as="p">
-                  {activeDiscounts}
-                </Text>
-                <Text variant="bodySm" tone="subdued">
-                  out of {totalDiscounts} total
-                </Text>
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="200">
-                <Text variant="headingSm" as="h3" tone="subdued">
-                  TOTAL USAGE
-                </Text>
-                <Text variant="headingLg" as="p">
-                  {loaderTotalUsage ?? 0}
-                </Text>
-                <Text variant="bodySm" tone="subdued">
-                  times applied on orders
-                </Text>
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="200">
-                <Text variant="headingSm" as="h3" tone="subdued">
-                  SHOPIFY SYNC
-                </Text>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <Text variant="headingLg" as="p">
-                    Connected
-                  </Text>
-                  <Badge tone="success">Active</Badge>
+            {/* Card 1: Active Discounts */}
+            <div style={{ flex: 1, minWidth: '280px', background: '#fff', borderRadius: '16px', padding: '20px', position: 'relative', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <p style={{ fontSize: '13px', color: '#666', fontWeight: '500', margin: '0 0 12px 0' }}>Active Discounts</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: '36px', fontWeight: '700', margin: 0, color: '#000' }}>{activeDiscounts}</h2>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                  <Icon source={DiscountIcon} tone="base" />
                 </div>
-                <Text variant="bodySm" tone="subdued">
-                  Real-time synchronization
-                </Text>
-              </BlockStack>
-            </Card>
-          </div>
-
-          {/* Discounts Table */}
-          <Card padding="0">
-            <div
-              style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid #E5E7EB',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <Text variant="headingMd" as="h2">
-                Internal Discounts
-              </Text>
-              <InlineStack gap="200">
-                <Button
-                  size="slim"
-                  onClick={() => {
-                    fetcher.load('/app/discountengine');
-                    shopify.toast.show('Syncing from backend...');
-                  }}
-                  loading={fetcher.state !== 'idle'}
-                >
-                  Refresh
-                </Button>
-                <Button
-                  size="slim"
-                  onClick={() => setSelectTypeModalOpen(true)}
-                >
-                  + New Discount
-                </Button>
-              </InlineStack>
+              </div>
+              <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', margin: '12px 0 0 0' }}>
+                {totalDiscounts} total rules overall
+              </p>
             </div>
 
-            {displayDiscounts.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center' }}>
-                <EmptyState
-                  heading="No discounts yet"
-                  action={{
-                    content: 'Create discount',
-                    onAction: () => setSelectTypeModalOpen(true),
-                  }}
-                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+            {/* Card 2: Total Usage */}
+            <div style={{ flex: 1, minWidth: '280px', background: '#fff', borderRadius: '16px', padding: '20px', position: 'relative', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <p style={{ fontSize: '13px', color: '#666', fontWeight: '500', margin: '0 0 12px 0' }}>Total Usage</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: '36px', fontWeight: '700', margin: 0, color: '#000' }}>{loaderTotalUsage ?? 0}</h2>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                  <Icon source={CartIcon} tone="base" />
+                </div>
+              </div>
+              <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', margin: '12px 0 0 0' }}>
+                Total redemptions tracked
+              </p>
+            </div>
+
+            {/* Card 3: Shopify Sync */}
+            <div style={{ flex: 1, minWidth: '280px', background: '#fff', borderRadius: '16px', padding: '20px', position: 'relative', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <p style={{ fontSize: '13px', color: '#666', fontWeight: '500', margin: '0 0 12px 0' }}>Shopify Sync</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: '#000' }}>Connected</h2>
+                </div>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => { fetcher.load('/app/discountengine'); shopify.toast.show('Syncing from backend...'); }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 3.33333V0.833328L6.66667 4.16666L10 7.49999V4.99999C13.6833 4.99999 16.6667 7.98333 16.6667 11.6667C16.6667 15.35 13.6833 18.3333 10 18.3333C6.31667 18.3333 3.33333 15.35 3.33333 11.6667H1.66667C1.66667 16.2667 5.4 20 10 20C14.6 20 18.3333 16.2667 18.3333 11.6667C18.3333 7.06666 14.6 3.33333 10 3.33333Z" fill="#666"/>
+                  </svg>
+                </div>
+              </div>
+              <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', margin: '14px 0 0 0' }}>
+                Real-time synchronization
+              </p>
+            </div>
+          </div>
+
+          {/* Main Table Container */}
+          <div style={{ background: '#f8fafc', borderRadius: '24px', padding: '24px', border: '1px solid #f1f5f9' }}>
+            
+            {/* Toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff', padding: '8px 16px', borderRadius: '30px', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '14px', color: '#666' }}>Filter by:</span>
+                <select 
+                  value={filterType}
+                  onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
+                  style={{ border: 'none', background: 'transparent', fontSize: '14px', fontWeight: '600', color: '#000', cursor: 'pointer', outline: 'none' }}
                 >
-                  <p>Create your first discount to get started.</p>
-                </EmptyState>
+                  <option>All Discounts</option>
+                  <option>Active</option>
+                  <option>Inactive</option>
+                </select>
               </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr
-                      style={{
-                        background: '#F9FAFB',
-                        borderBottom: '1px solid #E5E7EB',
-                      }}
-                    >
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'left',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        DISCOUNT
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'left',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        TYPE
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'left',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        USAGE
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'left',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        STATUS
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'left',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        DATE
-                      </th>
-                      <th
-                        style={{
-                          padding: '12px 20px',
-                          textAlign: 'center',
-                          fontSize: '12px',
-                          color: '#666',
-                        }}
-                      >
-                        ACTIONS
-                      </th>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button onClick={handleExportCSV} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '30px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', color: '#000', cursor: 'pointer', transition: 'all 0.2s' }}>Export CSV</button>
+                <button onClick={() => shopify.toast.show('Bulk Actions coming soon.')} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '30px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', color: '#000', cursor: 'pointer', transition: 'all 0.2s' }}>Bulk Actions</button>
+                <button onClick={() => setSelectTypeModalOpen(true)} style={{ background: '#000', border: 'none', borderRadius: '30px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', color: '#fff', cursor: 'pointer', transition: 'all 0.2s' }}>+ Create Discount</button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ background: '#fff', borderRadius: '24px', overflowX: 'auto', border: '1px solid #eaeaea', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '20px 24px', fontSize: '11px', fontWeight: '600', color: '#777', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid #eaeaea', background: '#fafafa' }}>Discount Name</th>
+                    <th style={{ padding: '20px 24px', fontSize: '11px', fontWeight: '600', color: '#777', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid #eaeaea', background: '#fafafa' }}>Type</th>
+                    <th style={{ padding: '20px 24px', fontSize: '11px', fontWeight: '600', color: '#777', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid #eaeaea', background: '#fafafa' }}>Usage</th>
+                    <th className="desktop-only" style={{ padding: '20px 24px', fontSize: '11px', fontWeight: '600', color: '#777', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid #eaeaea', background: '#fafafa' }}>Status</th>
+                    <th style={{ padding: '20px 24px', fontSize: '11px', fontWeight: '600', color: '#777', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid #eaeaea', background: '#fafafa', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedDiscounts.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ padding: '80px', textAlign: 'center', color: '#888' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ opacity: 0.5 }}>
+                            <Icon source={DiscountIcon} tone="subdued" />
+                          </div>
+                          <span style={{ fontSize: '14px', fontWeight: '500' }}>No discounts found.</span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {displayDiscounts.map((item) => (
-                      <tr
-                        key={item.id}
-                        style={{
-                          borderBottom: '1px solid #E5E7EB',
-                          opacity: item.isOptimistic ? 0.6 : 1,
-                        }}
-                      >
-                        <td style={{ padding: '12px 20px' }}>
-                          <Text fontWeight="bold" variant="bodyMd">
-                            {item.title}
-                          </Text>
-                          {item.code && (
-                            <Text variant="bodySm" tone="subdued">
-                              {item.code}
-                            </Text>
-                          )}
-                        </td>
-                        <td style={{ padding: '12px 20px' }}>
-                          <Badge>{getTypeLabel(item.type)}</Badge>
-                        </td>
-                        <td style={{ padding: '12px 20px' }}>
-                          <Text variant="bodySm">{item.usage}</Text>
-                        </td>
-                        <td style={{ padding: '12px 20px' }}>
-                          <StatusToggle
-                            status={item.status}
-                            onToggle={() => handleToggleStatus(item)}
-                            loading={
-                              fetcher.state !== 'idle' &&
-                              fetcher.formData?.get('id') === String(item.id)
-                            }
-                          />
-                        </td>
-                        <td style={{ padding: '12px 20px' }}>
-                          <Text variant="bodySm">{item.created || 'N/A'}</Text>
-                        </td>
-                        <td
-                          style={{ padding: '12px 20px', textAlign: 'center' }}
+                  ) : (
+                    paginatedDiscounts.map((item, index) => {
+                      // Modern minimalist badges
+                      let typePillStyle = { background: '#f5f5f5', color: '#444', border: '1px solid #e5e5e5' }; 
+                      if (item.type === 'amount_off_products' || item.type === 'amount_off_order') typePillStyle = { background: '#fafafa', color: '#111', border: '1px solid #eaeaea' };
+                      if (item.type === 'buy_x_get_y') typePillStyle = { background: '#f0f0f0', color: '#000', border: '1px solid #d4d4d4' };
+                      if (item.type === 'free_shipping') typePillStyle = { background: '#fff', color: '#000', border: '1px solid #ccc', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' };
+
+                      return (
+                        <tr 
+                          key={item.id} 
+                          style={{ opacity: item.isOptimistic ? 0.6 : 1, transition: 'all 0.25s ease', background: '#fff' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.04)'; e.currentTarget.style.position = 'relative'; e.currentTarget.style.zIndex = 1; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.position = 'static'; e.currentTarget.style.zIndex = 'auto'; }}
                         >
-                          <InlineStack align="center" gap="200">
-                            <Button
-                              icon={EditIcon}
-                              variant="plain"
-                              onClick={() => handleEditDiscount(item)}
-                            />
-                            <Button
-                              icon={DeleteIcon}
-                              variant="plain"
-                              tone="critical"
-                              onClick={() => handleDeleteDiscount(item)}
-                            />
-                          </InlineStack>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <td style={{ padding: '20px 24px', borderBottom: index === paginatedDiscounts.length - 1 ? 'none' : '1px solid #f1f1f1' }}>
+                            <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 4px 0', color: '#111', letterSpacing: '-0.2px' }}>{item.title}</p>
+                            <p style={{ fontSize: '12px', color: '#888', margin: 0, fontWeight: '400' }}>Created {item.created || 'N/A'}</p>
+                          </td>
+                          <td style={{ padding: '20px 24px', borderBottom: index === paginatedDiscounts.length - 1 ? 'none' : '1px solid #f1f1f1' }}>
+                            <span style={{ display: 'inline-block', padding: '6px 14px', borderRadius: '24px', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.8px', transition: 'all 0.2s', ...typePillStyle }}>
+                              {getTypeLabel(item.type)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '20px 24px', borderBottom: index === paginatedDiscounts.length - 1 ? 'none' : '1px solid #f1f1f1' }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                              <span style={{ fontSize: '15px', fontWeight: '600', color: '#111' }}>{(item.usage || '0').split(' / ')[0]}</span>
+                              <span style={{ fontSize: '12px', color: '#999' }}>uses</span>
+                            </div>
+                          </td>
+                          <td className="desktop-only" style={{ padding: '20px 24px', borderBottom: index === paginatedDiscounts.length - 1 ? 'none' : '1px solid #f1f1f1' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <StatusToggle
+                                status={item.status}
+                                onToggle={() => handleToggleStatus(item)}
+                                loading={
+                                  fetcher.state !== 'idle' &&
+                                  fetcher.formData?.get('id') === String(item.id)
+                                }
+                              />
+                            </div>
+                          </td>
+                          <td style={{ padding: '20px 24px', borderBottom: index === paginatedDiscounts.length - 1 ? 'none' : '1px solid #f1f1f1', textAlign: 'right' }}>
+                            <div className="desktop-only">
+                              <InlineStack align="end" gap="200" blockAlign="center" wrap={false}>
+                                <div 
+                                  style={{ cursor: 'pointer', padding: '8px', opacity: 0.6, transition: 'all 0.2s', background: '#f5f5f5', borderRadius: '8px', display: 'flex' }} 
+                                  onClick={() => handleEditDiscount(item)}
+                                  onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = '#e5e5e5'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.background = '#f5f5f5'; }}
+                                >
+                                  <Icon source={EditIcon} tone="base" />
+                                </div>
+                                <div 
+                                  style={{ cursor: 'pointer', padding: '8px', opacity: 0.6, transition: 'all 0.2s', background: '#fff0f0', borderRadius: '8px', display: 'flex' }} 
+                                  onClick={() => handleDeleteDiscount(item)}
+                                  onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.background = '#fee2e2'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.background = '#fff0f0'; }}
+                                >
+                                  <Icon source={DeleteIcon} tone="critical" />
+                                </div>
+                              </InlineStack>
+                            </div>
+                            <div className="mobile-only">
+                              <Popover
+                                active={popoverActive === item.id}
+                                activator={
+                                  <Button
+                                    onClick={() => setPopoverActive(popoverActive === item.id ? null : item.id)}
+                                    icon={MenuHorizontalIcon}
+                                    variant="tertiary"
+                                  />
+                                }
+                                onClose={() => setPopoverActive(null)}
+                              >
+                                <ActionList
+                                  items={[
+                                    {
+                                      content: 'Edit',
+                                      icon: EditIcon,
+                                      onAction: () => { handleEditDiscount(item); setPopoverActive(null); },
+                                    },
+                                    {
+                                      content: item.status === 'active' ? 'Deactivate' : 'Activate',
+                                      icon: item.status === 'active' ? PauseCircleIcon : PlayCircleIcon,
+                                      onAction: () => { handleToggleStatus(item); setPopoverActive(null); },
+                                    },
+                                    {
+                                      content: 'Delete',
+                                      icon: DeleteIcon,
+                                      destructive: true,
+                                      onAction: () => { handleDeleteDiscount(item); setPopoverActive(null); },
+                                    },
+                                  ]}
+                                />
+                              </Popover>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', color: '#64748b' }}>
+              <span style={{ fontSize: '13px', fontWeight: '500' }}>
+                Showing {totalFilteredList === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalFilteredList)} of {totalFilteredList} discounts
+              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'transparent', border: 'none', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPage === 1 ? '#cbd5e1' : '#64748b' }}>&lt;</button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button 
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    style={{ 
+                      width: '32px', height: '32px', borderRadius: '50%', 
+                      background: currentPage === page ? '#0f172a' : 'transparent', 
+                      color: currentPage === page ? '#fff' : '#64748b', 
+                      border: 'none', fontWeight: '600', cursor: 'pointer', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                    }}>
+                    {page}
+                  </button>
+                ))}
+
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'transparent', border: 'none', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPage === totalPages ? '#cbd5e1' : '#64748b' }}>&gt;</button>
               </div>
-            )}
-          </Card>
+            </div>
+          </div>
+
+          {/* Promotional Banner */}
+          <div style={{ background: '#111', borderRadius: '32px', padding: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', position: 'relative', overflow: 'hidden', flexWrap: 'wrap', gap: '32px' }}>
+            <div style={{ flex: '1 1 300px', minWidth: '280px', position: 'relative', zIndex: 2 }}>
+              <h2 style={{ fontSize: '32px', fontWeight: '700', color: '#fff', margin: '0 0 16px 0', lineHeight: 1.2 }}>Master your margins with Automated Rules</h2>
+              <p style={{ fontSize: '15px', color: '#a1a1aa', margin: '0 0 32px 0', lineHeight: 1.6 }}>
+                Use advanced logic to trigger discounts exactly when customers are ready to convert. Increase AOV by 24% on average.
+              </p>
+              <button 
+                onClick={() => navigate('/app/customize')}
+                style={{ background: '#fff', color: '#000', border: 'none', padding: '14px 28px', borderRadius: '30px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
+                Explore Templates
+              </button>
+            </div>
+            
+            {/* Template Showcase (Collapsed Book Pages) */}
+            <div style={{ flex: '1 1 300px', minWidth: '280px', height: '240px', position: 'relative', perspective: '1200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <style>{`
+                @media (max-width: 767px) {
+                  .desktop-only { display: none !important; }
+                }
+                @media (min-width: 768px) {
+                  .mobile-only { display: none !important; }
+                }
+                @keyframes float-pages {
+                  0%, 100% { transform: translateY(0) rotateX(5deg); }
+                  50% { transform: translateY(-10px) rotateX(10deg); }
+                }
+                .template-page-stack {
+                  position: relative;
+                  width: 200px;
+                  height: 140px;
+                  transform-style: preserve-3d;
+                  animation: float-pages 6s ease-in-out infinite;
+                }
+                .template-page {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+                  background: #fff;
+                  border-radius: 8px;
+                  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                  border: 1px solid rgba(255,255,255,0.1);
+                  overflow: hidden;
+                  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                }
+                .template-img {
+                  width: 100%;
+                  height: 100%;
+                  object-fit: cover;
+                }
+                /* Collapsed/Stacked effect */
+                .template-page:nth-child(1) { transform: translateZ(40px) rotateY(-5deg); z-index: 5; }
+                .template-page:nth-child(2) { transform: translateZ(20px) rotateY(-12deg) translateX(-20px); z-index: 4; }
+                .template-page:nth-child(3) { transform: translateZ(0px) rotateY(-18deg) translateX(-40px); z-index: 3; }
+                .template-page:nth-child(4) { transform: translateZ(-20px) rotateY(-24deg) translateX(-60px); z-index: 2; }
+              `}</style>
+
+              <div className="template-page-stack">
+                {/* Page 1 (Front) */}
+                <div className="template-page">
+                  <img src="/combo-design-one-preview.png" alt="Template 1" className="template-img" />
+                </div>
+                {/* Page 2 */}
+                <div className="template-page">
+                  <img src="/combo-design-two-preview.png" alt="Template 2" className="template-img" />
+                </div>
+                {/* Page 3 */}
+                <div className="template-page">
+                  <img src="/combo-design-four-preview.png" alt="Template 3" className="template-img" />
+                </div>
+                {/* Page 4 (Back) */}
+                <div className="template-page" style={{ background: '#f8fafc' }} />
+              </div>
+
+              {/* Restored Conversion Lift Component */}
+              <div style={{ 
+                background: 'rgba(255,255,255,0.1)', 
+                border: '1px solid rgba(255,255,255,0.15)', 
+                borderRadius: '16px', 
+                width: '160px', 
+                height: '80px', 
+                position: 'absolute', 
+                bottom: '10px', 
+                left: '-20px', 
+                backdropFilter: 'blur(10px)', 
+                padding: '16px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justifyContent: 'center',
+                zIndex: 6,
+                boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+              }}>
+                <span style={{ color: '#fff', fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>+15%</span>
+                <span style={{ color: '#a1a1aa', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 'bold' }}>Conversion Lift</span>
+              </div>
+            </div>
+            {/* Subtle Gradient Glow */}
+            <div style={{ position: 'absolute', top: '50%', right: '10%', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 70%)', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}></div>
+          </div>
         </div>
       ) : (
         <fetcher.Form method="post" onSubmit={handleMainFormSubmit}>

@@ -328,7 +328,7 @@ function ComboPreview({ config, device }) {
     .combo-primary-img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s ease, transform 0.3s ease; }
     .combo-hover-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; background: rgba(255, 255, 255, 0.95); display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; text-align: center; }
     .combo-secondary-img { width: 100%; height: 100%; object-fit: cover; }
-    .combo-hover-desc { font-size: 13px; color: #333; line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+    .combo-hover-desc { font-size: var(--ui-font-size-sm); color: #333; line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
     .has-hover-effect:hover .combo-primary-img { opacity: 0; transform: scale(1.05); }
     .has-hover-effect:hover .combo-hover-content { opacity: 1; visibility: visible; }
   `;

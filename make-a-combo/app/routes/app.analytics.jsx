@@ -59,10 +59,8 @@ export default function AnalyticsPage() {
   const { analyticsData } = useLoaderData();
 
   return (
-    <Page title="Analytics">
-      <BlockStack gap="600">
-        <ShopifyAnalytics initialData={analyticsData} />
-      </BlockStack>
+    <Page fullWidth>
+      <ShopifyAnalytics initialData={analyticsData} />
     </Page>
   );
 }

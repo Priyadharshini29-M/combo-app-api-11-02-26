@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useLoaderData,
   Link,
@@ -61,7 +61,7 @@ function DashboardLayout({ left, rightTop, rightBottom, steps, cta }) {
           overflow: hidden;
           width: 100%;
           position: relative;
-          padding: 0 44px;
+          padding: 0;
         }
         .dashboard-steps-track {
           display: flex;
@@ -84,7 +84,7 @@ function DashboardLayout({ left, rightTop, rightBottom, steps, cta }) {
           border: 1px solid #c9cccf;
           background: #ffffff;
           color: #1f2937;
-          font-size: 20px;
+          font-size: var(--ui-font-size-md);
           line-height: 1;
           display: grid;
           place-items: center;
@@ -106,7 +106,7 @@ function DashboardLayout({ left, rightTop, rightBottom, steps, cta }) {
             grid-template-columns: 1fr;
           }
           .dashboard-steps-carousel {
-            padding: 0 36px;
+            padding: 0;
           }
         }
       `}</style>
@@ -301,9 +301,15 @@ function PlanCard({ fillHeight = false }) {
   );
 }
 
+// ...existing code...
 function StepsSection() {
   const [startIndex, setStartIndex] = useState(0);
-  const [cardsPerView, setCardsPerView] = useState(3);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const carouselRef = useRef(null);
+
+  const cardWidth = 240;
+  const gap = 12;
+  const stepSize = cardWidth + gap;
 
   const steps = [
     {
@@ -350,31 +356,37 @@ function StepsSection() {
   ];
 
   useEffect(() => {
-    const updateCardsPerView = () => {
-      if (window.innerWidth < 720) {
-        setCardsPerView(1);
-        return;
-      }
-      if (window.innerWidth < 1120) {
-        setCardsPerView(2);
-        return;
-      }
-      setCardsPerView(3);
+    const measure = () => {
+      if (carouselRef.current) setContainerWidth(carouselRef.current.clientWidth);
     };
 
-    updateCardsPerView();
-    window.addEventListener('resize', updateCardsPerView);
+    measure();
 
-    return () => window.removeEventListener('resize', updateCardsPerView);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined' && carouselRef.current) {
+      ro = new ResizeObserver(measure);
+      ro.observe(carouselRef.current);
+    } else {
+      window.addEventListener('resize', measure);
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      else window.removeEventListener('resize', measure);
+    };
   }, []);
 
-  const maxStartIndex = Math.max(0, steps.length - cardsPerView);
+  const totalTrackWidth = steps.length * cardWidth + (steps.length - 1) * gap;
+  const maxTranslate = Math.max(0, totalTrackWidth - containerWidth);
+
+  // IMPORTANT: use ceil so last click can reach exact end (no blank space)
+  const maxStartIndex = Math.max(0, Math.ceil(maxTranslate / stepSize));
 
   useEffect(() => {
     setStartIndex((prev) => Math.min(prev, maxStartIndex));
   }, [maxStartIndex]);
 
-  const translateX = startIndex * (240 + 12);
+  const translateX = Math.min(startIndex * stepSize, maxTranslate);
 
   return (
     <Card>
@@ -384,28 +396,32 @@ function StepsSection() {
         </Text>
 
         <div className="dashboard-steps-grid">
-          <div className="dashboard-steps-carousel">
-            <button
-              type="button"
-              className="dashboard-arrow dashboard-arrow-left"
-              onClick={() => setStartIndex((prev) => Math.max(0, prev - 1))}
-              disabled={startIndex === 0}
-              aria-label="Previous cards"
-            >
-              ‹
-            </button>
+          <div className="dashboard-steps-carousel" ref={carouselRef}>
+            {maxStartIndex > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="dashboard-arrow dashboard-arrow-left"
+                  onClick={() => setStartIndex((prev) => Math.max(0, prev - 1))}
+                  disabled={startIndex === 0}
+                  aria-label="Previous cards"
+                >
+                  ‹
+                </button>
 
-            <button
-              type="button"
-              className="dashboard-arrow dashboard-arrow-right"
-              onClick={() =>
-                setStartIndex((prev) => Math.min(maxStartIndex, prev + 1))
-              }
-              disabled={startIndex >= maxStartIndex}
-              aria-label="Next cards"
-            >
-              ›
-            </button>
+                <button
+                  type="button"
+                  className="dashboard-arrow dashboard-arrow-right"
+                  onClick={() =>
+                    setStartIndex((prev) => Math.min(maxStartIndex, prev + 1))
+                  }
+                  disabled={startIndex >= maxStartIndex}
+                  aria-label="Next cards"
+                >
+                  ›
+                </button>
+              </>
+            )}
 
             <div
               className="dashboard-steps-track"
@@ -445,6 +461,7 @@ function StepsSection() {
     </Card>
   );
 }
+// ...existing code...
 
 function CTABanner() {
   return (

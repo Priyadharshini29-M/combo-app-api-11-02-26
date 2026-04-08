@@ -2416,12 +2416,7 @@ export default function Customize() {
         </div>
 
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: '32px',
-            marginBottom: '40px',
-          }}
+          className="template-picker-grid"
         >
           {TEMPLATE_CATALOGUE.map((tpl) => (
             <div
@@ -2581,6 +2576,7 @@ export default function Customize() {
                   </div>
                   <Button
                     variant="primary"
+                    className="premium-customize-btn"
                     id={`select-template-${tpl.id}`}
                     onClick={() => handlePickLayout(tpl.blockName)}
                   >
