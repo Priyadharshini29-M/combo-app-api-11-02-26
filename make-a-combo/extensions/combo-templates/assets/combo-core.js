@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       'preview'
     );
     const proxyEndpoint = `/apps/combo/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
-    const fallbackEndpoint = `https://darkblue-dotterel-303283.hostingersite.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
+    const fallbackEndpoint = `https://int.thecomboforge.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
 
     let response = await fetch(proxyEndpoint);
     if (!response.ok && [401, 403, 404, 500].includes(response.status)) {

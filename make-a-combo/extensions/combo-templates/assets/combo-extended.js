@@ -402,7 +402,7 @@ function trackVisit(templateName) {
     visitor_id: userId,
     discount_code: window.__cdoDiscountCode || null,
   };
-  fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
+  fetch('https://int.thecomboforge.com/clicks.php', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -428,7 +428,7 @@ function trackCheckout(templateName) {
     type: 'checkout',
     discount_code: window.__cdoDiscountCode || null,
   };
-  fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
+  fetch('https://int.thecomboforge.com/clicks.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2017,7 +2017,7 @@ function bindLayout1Logic(cfg, products) {
           '&note_attributes[combo_source]=combo-builder' +
           '&note_attributes[combo_template]=' + templateNameParam;
         // Fire-and-forget tracking (do NOT await)
-        fetch('https://darkblue-dotterel-303283.hostingersite.com/clicks.php', {
+        fetch('https://int.thecomboforge.com/clicks.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -3165,7 +3165,7 @@ function bindStandardLogic({ cfg, products }) {
           // timestamp handled by backend
         };
         var url =
-          'https://darkblue-dotterel-303283.hostingersite.com/clicks.php';
+          'https://int.thecomboforge.com/clicks.php';
         var payload = JSON.stringify(trackingData);
         if (navigator.sendBeacon) {
           var blob = new Blob([payload], { type: 'application/json' });
@@ -3251,7 +3251,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     );
     // ONLY use the Shopify App Proxy endpoint â€” /apps/combo/templates.php
     const proxyEndpoint = `/apps/combo/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
-    const fallbackEndpoint = `https://darkblue-dotterel-303283.hostingersite.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
+    const fallbackEndpoint = `https://int.thecomboforge.com/templates.php?shop=${encodeURIComponent(shopDomain)}&handle=${encodeURIComponent(slug)}${isPreview ? '&preview=1' : ''}`;
 
     let response = await fetch(proxyEndpoint);
     if (!response.ok && [401, 403, 404, 500].includes(response.status)) {
@@ -3287,7 +3287,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       if (template.discount_code) {
         try {
           const discRes = await fetch(
-            `https://darkblue-dotterel-303283.hostingersite.com/discount.php?shop=${encodeURIComponent(shopDomain)}&shopdomain=${encodeURIComponent(shopDomain)}`
+            `https://int.thecomboforge.com/discount.php?shop=${encodeURIComponent(shopDomain)}&shopdomain=${encodeURIComponent(shopDomain)}`
           );
           const discData = await discRes.json();
           const allDiscounts = discData.data || [];

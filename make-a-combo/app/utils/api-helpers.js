@@ -22,7 +22,7 @@ export const formatToIST = (dateString = null) => {
    PHP BACKEND CONFIG
 ========================= */
 export const BASE_PHP_URL =
-  'https://darkblue-dotterel-303283.hostingersite.com';
+  'https://int.thecomboforge.com';
 
 /* =========================
    DATABASE HELPERS (PHP REPLACEMENT)

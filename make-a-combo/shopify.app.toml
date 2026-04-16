@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "f5c2cbb3e511079397eeaa68d16259ae"
-name = "Make-a-combo"
-application_url = "https://951b-103-114-211-244.ngrok-free.app/"
+name = "Combo Forge"
+application_url = "https://combo-forge.fly.dev/"
 embedded = true
 
 [build]
@@ -29,12 +29,12 @@ scopes = "write_products,read_content,write_content,read_script_tags,write_scrip
 
 [auth]
 redirect_urls = [
-  "https://951b-103-114-211-244.ngrok-free.app//auth/callback",
-  "https://951b-103-114-211-244.ngrok-free.app//auth/shopify/callback",
-  "https://951b-103-114-211-244.ngrok-free.app//api/auth/callback"
+  "https://combo-forge.fly.dev/auth/callback",
+  "https://combo-forge.fly.dev/auth/shopify/callback",
+  "https://combo-forge.fly.dev/api/auth/callback"
 ]
 
 [app_proxy]
-url = "https://darkblue-dotterel-303283.hostingersite.com"
+url = "https://int.thecomboforge.com"
 subpath = "combo"
 prefix = "apps"
